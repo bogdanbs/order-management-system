@@ -1,0 +1,65 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  namespace: orders
+  labels:
+    # Must match the Kafka CR name below
+    strimzi.io/cluster: orders-kafka
+spec:
+  replicas: 3
+  # Combined controller+broker role (KRaft equivalent of our previous setup)
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        # Keep PVCs when the pool is deleted so data survives operator upgrades
+        deleteClaim: false
+        class: orders-retain
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  jvmOptions:
+    -Xms: "256m"
+    -Xmx: "384m"
+
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: orders-kafka
+  namespace: orders
+  annotations:
+    # Enable KafkaNodePool support and KRaft mode
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    version: 4.3.0
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      # Topics are managed declaratively via KafkaTopic CRs
+      auto.create.topics.enable: "false"
+  # The Topic and User operators run as sidecars in the entity-operator pod.
+  # Topic operator watches KafkaTopic CRs and syncs them to the cluster.
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

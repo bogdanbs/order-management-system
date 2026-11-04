@@ -1,0 +1,12 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: orders-retain
+# Provisioner for minikube. Change for cloud clusters:
+#   AWS EKS:  ebs.csi.aws.com
+#   GKE:      pd.csi.storage.gke.io
+#   AKS:      disk.csi.azure.com
+provisioner: k8s.io/minikube-hostpath
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true

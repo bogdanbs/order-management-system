@@ -1,0 +1,15 @@
+# Runtime data and generated output
+/data/
+**/target/
+*.log
+
+# Local credentials and IDE state
+.env
+.env.*
+!.env.example
+/k8s/01-secrets.yaml
+.idea/
+.vscode/
+
+# Root-level local histories and transcripts
+/*.txt

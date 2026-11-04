@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-traces
+  namespace: orders
+data:
+  order-traces.json: |
+    {
+      "title": "Order Service — Traces & Logs",
+      "uid": "order-traces",
+      "tags": ["orders", "tracing"],
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "panels": [
+        {
+          "id": 1,
+          "type": "logs",
+          "title": "Order Service Logs  (click TraceID to open in Jaeger)",
+          "description": "Each log line with a traceId shows a 'TraceID' link. Click it to jump to the Jaeger trace in Grafana Explore.",
+          "datasource": { "uid": "loki", "type": "loki" },
+          "targets": [
+            {
+              "expr": "{app=\"order-service\"}",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 14 }
+        },
+        {
+          "id": 2,
+          "type": "traces",
+          "title": "Recent Jaeger Traces — order-service",
+          "description": "Shows the 20 most recent traces. Click any row to expand the full span tree.",
+          "datasource": { "uid": "jaeger", "type": "jaeger" },
+          "targets": [
+            {
+              "queryType": "search",
+              "service": "order-service",
+              "refId": "A",
+              "limit": 20
+            }
+          ],
+          "options": {},
+          "gridPos": { "x": 0, "y": 14, "w": 24, "h": 14 }
+        }
+      ]
+    }

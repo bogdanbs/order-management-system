@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/orders_db
+    username: orders_user
+    password: ${SPRING_DATASOURCE_PASSWORD:orders_pass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: localhost:9092
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  level:
+    com.orders: DEBUG
+    org.hibernate.SQL: WARN
+
+loki:
+  url: ${LOKI_URL:http://localhost:3100}
+
+app:
+  outbox:
+    mode: ${APP_OUTBOX_MODE:polling}
+    polling-interval-ms: 5000
+  snapshot:
+    threshold: 50
+  cdc:
+    kafka-connect-url: ${KAFKA_CONNECT_URL:http://kafka-connect:8083}

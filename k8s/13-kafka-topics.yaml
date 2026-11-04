@@ -1,0 +1,62 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: order-events
+  namespace: orders
+  labels:
+    strimzi.io/cluster: orders-kafka
+spec:
+  topicName: order.events
+  partitions: 6
+  replicas: 3
+  config:
+    # 7-day retention
+    retention.ms: "604800000"
+    # Compact deleted records after 1 hour
+    delete.retention.ms: "3600000"
+
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: order-commands
+  namespace: orders
+  labels:
+    strimzi.io/cluster: orders-kafka
+spec:
+  topicName: order.commands
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: "86400000"
+
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: order-replies
+  namespace: orders
+  labels:
+    strimzi.io/cluster: orders-kafka
+spec:
+  topicName: order.replies
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: "86400000"
+
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: order-events-dlq
+  namespace: orders
+  labels:
+    strimzi.io/cluster: orders-kafka
+spec:
+  topicName: order.events.dlq
+  partitions: 3
+  replicas: 3
+  config:
+    # Keep DLQ messages for 30 days
+    retention.ms: "2592000000"
