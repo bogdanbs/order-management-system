@@ -16,6 +16,8 @@ The local Compose demo uses `orders_pass` for PostgreSQL and `admin` for Grafana
 ## Order API
 
 - `POST /api/orders` creates an order.
+- `GET /api/orders/customer?firstName=Ada&lastName=Lovelace` returns orders matching a customer's first and last name, newest first (case-insensitive).
+- `GET /api/orders` lists all orders.
 - `POST /api/orders/{id}/items` adds a product and quantity.
 - `DELETE /api/orders/{id}/items/{productId}` removes one unit. The line remains until its quantity reaches zero.
 - `POST /api/orders/{id}/submit` submits the order.
