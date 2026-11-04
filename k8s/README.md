@@ -6,36 +6,47 @@ All resources are deployed into the `orders` namespace.
 
 - `kubectl` configured against a running cluster
 - A local or cloud cluster: [minikube](https://minikube.sigs.k8s.io/), [kind](https://kind.sigs.k8s.io/), or any managed Kubernetes (EKS, GKE, AKS)
+- Docker for building the application and Kafka Connect images
 
-## 1. Build the application image
+## 1. Install Strimzi
+
+The Kafka manifests use Kafka 4.3 and the Strimzi `v1` API. Install Strimzi 1.3.0 (Kubernetes 1.32 or newer):
 
 ```bash
-cd order-management-system
-mvn -pl order-service spring-boot:build-image \
-  -Dspring-boot.build-image.imageName=order-management-system-order-service:latest
+kubectl apply -f k8s/00-namespace.yaml
+curl -fL -o /tmp/strimzi-crds.yaml \
+  https://github.com/strimzi/strimzi-kafka-operator/releases/download/1.3.0/strimzi-crds-1.3.0.yaml
+kubectl apply -f /tmp/strimzi-crds.yaml
+curl -fL -o /tmp/strimzi-operator.yaml \
+  https://github.com/strimzi/strimzi-kafka-operator/releases/download/1.3.0/strimzi-cluster-operator-1.3.0.yaml
+sed 's/myproject/orders/g' /tmp/strimzi-operator.yaml | kubectl apply -n orders -f -
+kubectl -n orders rollout status deployment/strimzi-cluster-operator
 ```
 
-This produces the image `order-management-system-order-service:latest`.
+## 2. Build and load the images
 
-## 2. Load the image into the cluster
+Build both images from the project root:
+
+```bash
+docker build -t order-management-system-order-service:latest -f order-service/Dockerfile .
+docker build -t orders-kafka-connect:1.0.0 -f Dockerfile.kafka-connect .
+```
+
+Load the images into the cluster.
 
 **minikube:**
 ```bash
 minikube image load order-management-system-order-service:latest
+minikube image load orders-kafka-connect:1.0.0
 ```
 
 **kind:**
 ```bash
 kind load docker-image order-management-system-order-service:latest
+kind load docker-image orders-kafka-connect:1.0.0
 ```
 
-**Cloud registry (ECR, GCR, ACR, Docker Hub):**
-```bash
-docker tag order-management-system-order-service:latest <registry>/order-management-system-order-service:latest
-docker push <registry>/order-management-system-order-service:latest
-```
-
-Then update the `image:` field in `07-order-service.yaml` to point to your registry image.
+For a remote cluster, push both images to a registry and update the `image:` fields in `07-order-service.yaml` and `06-kafka-connect.yaml`.
 
 ## 3. Configure secrets and deploy
 
@@ -45,11 +56,10 @@ Create strong values locally; do not commit them. The checked-in secret template
 export ORDERS_DB_PASSWORD='replace-with-a-strong-database-password'
 export GRAFANA_ADMIN_PASSWORD='replace-with-a-strong-grafana-password'
 
-kubectl apply -f k8s/00-namespace.yaml
 envsubst < k8s/01-secrets.yaml.example | kubectl apply -f -
 ```
 
-The database and Grafana credentials are read from Kubernetes Secrets. Kafka Connect resolves the database password from the `orders-db` Secret using Strimzi's Kubernetes Secret Config Provider.
+The database and Grafana credentials are read from Kubernetes Secrets. In CDC mode, the order service passes its database password from the Secret to Kafka Connect when registering the connector.
 
 ```bash
 kubectl apply -f k8s/
@@ -94,20 +104,7 @@ kubectl -n orders port-forward svc/prometheus 9090:9090
 
 ## 5. Outbox mode
 
-The service starts in **polling** mode by default. To switch to CDC (Debezium):
-
-```bash
-kubectl -n orders set env deployment/order-service APP_OUTBOX_MODE=cdc
-```
-
-Kafka Connect will register the Debezium connector automatically on startup. To register it manually:
-
-```bash
-kubectl -n orders port-forward svc/kafka-connect 8083:8083 &
-curl -X POST http://localhost:8083/connectors \
-  -H "Content-Type: application/json" \
-  -d @k8s/debezium-pg-connector.json
-```
+The service starts in **polling** mode by default. To use Debezium CDC instead, run `kubectl -n orders set env deployment/order-service APP_OUTBOX_MODE=cdc`. The application registers its packaged connector configuration with Kafka Connect at startup; do not also create a `KafkaConnector` resource or register a second connector manually.
 
 ## 6. Projection rebuild
 

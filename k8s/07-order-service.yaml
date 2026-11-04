@@ -58,8 +58,8 @@ spec:
               value: http://loki:3100
             - name: APP_OUTBOX_MODE
               value: polling
-            - name: KAFKA_CONNECT_URL
-              value: http://kafka-connect:8083
+            - name: APP_CDC_KAFKA_CONNECT_URL
+              value: http://kafka-connect-connect-api:8083
           ports:
             - containerPort: 8080
           readinessProbe:
@@ -72,7 +72,7 @@ spec:
             httpGet:
               path: /actuator/health/liveness
               port: 8080
-            initialDelaySeconds: 60
+            initialDelaySeconds: 300
             periodSeconds: 20
           resources:
             requests:

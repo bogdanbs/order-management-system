@@ -62,4 +62,6 @@ spec:
   # Topic operator watches KafkaTopic CRs and syncs them to the cluster.
   entityOperator:
     topicOperator: {}
-    userOperator: {}
+    userOperator:
+      livenessProbe:
+        initialDelaySeconds: 180

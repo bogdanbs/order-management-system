@@ -3,10 +3,6 @@ kind: KafkaConnect
 metadata:
   name: kafka-connect
   namespace: orders
-  annotations:
-    # Connectors are managed declaratively via KafkaConnector CRs.
-    # Any connector NOT backed by a KafkaConnector CR will be deleted.
-    strimzi.io/use-connector-resources: "true"
 spec:
   version: 4.3.0
   replicas: 1
@@ -21,8 +17,6 @@ spec:
     config.storage.replication.factor: 3
     offset.storage.replication.factor: 3
     status.storage.replication.factor: 3
-    config.providers: secrets
-    config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
@@ -31,7 +25,7 @@ spec:
     initialDelaySeconds: 30
     timeoutSeconds: 5
   livenessProbe:
-    initialDelaySeconds: 60
+    initialDelaySeconds: 300
     timeoutSeconds: 5
   resources:
     requests:
@@ -40,36 +34,3 @@ spec:
     limits:
       cpu: 1000m
       memory: 1Gi
-
----
-apiVersion: kafka.strimzi.io/v1
-kind: KafkaConnector
-metadata:
-  name: orders-outbox-connector
-  namespace: orders
-  labels:
-    # Must match the KafkaConnect CR name above
-    strimzi.io/cluster: kafka-connect
-spec:
-  class: io.debezium.connector.postgresql.PostgresConnector
-  tasksMax: 1
-  config:
-    database.hostname: postgres
-    database.port: "5432"
-    database.user: orders_user
-    database.password: ${secrets:orders/orders-db:POSTGRES_PASSWORD}
-    database.dbname: orders_db
-    database.server.name: orders
-    table.include.list: outbox.outbox_events
-    plugin.name: pgoutput
-    topic.prefix: orders
-    transforms: outbox
-    transforms.outbox.type: io.debezium.transforms.outbox.EventRouter
-    transforms.outbox.table.field.event.id: id
-    transforms.outbox.table.field.event.key: aggregate_id
-    transforms.outbox.table.field.event.type: event_type
-    transforms.outbox.table.field.event.payload: payload
-    transforms.outbox.route.by.field: aggregate_type
-    transforms.outbox.route.topic.replacement: order.events
-    slot.name: orders_outbox_slot
-    publication.name: orders_outbox_publication
