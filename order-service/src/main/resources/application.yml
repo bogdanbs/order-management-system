@@ -44,6 +44,7 @@ app:
     # Published rows (polling) or all rows (CDC) are deleted after this many hours.
     retention-hours: 24
     cleanup-interval-ms: 3600000
+    metrics-refresh-ms: 30000
   snapshot:
     threshold: 50
   cdc:

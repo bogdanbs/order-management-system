@@ -37,6 +37,8 @@ public interface OutboxRepository extends JpaRepository<OutboxRecord, UUID> {
             """)
     List<OutboxRecord> lockNextBatch();
 
+    long countByStatus(String status);
+
     @Transactional
     @Modifying
     @Query("DELETE FROM OutboxRecord r WHERE r.createdAt < :cutoff")
