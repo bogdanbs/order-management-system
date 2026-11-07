@@ -89,7 +89,6 @@ Polling is the default because it works without extra infrastructure and is easy
 - **At-least-once delivery.** The poller sends to Kafka before its transaction commits; a crash in between republishes the batch. Consumers must stay idempotent.
 - **CDC mode never cleans up the outbox.** Rows stay `PENDING` and the table grows; a retention job is needed.
 - **Eventual consistency.** Query endpoints may briefly return stale data after a command succeeds.
-- **Retry and transaction ordering.** `@RetryOnConcurrency` only helps if it wraps the transaction, because PostgreSQL aborts the transaction after a constraint violation. The aspect has no explicit `@Order` relative to `@Transactional`, and no test covers this path yet.
 
 ## How this project was built
 
