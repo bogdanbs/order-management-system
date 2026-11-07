@@ -78,7 +78,7 @@ The relay is selected with `APP_OUTBOX_MODE` (`polling` by default, or `cdc`).
 | Moving parts | Only the service, PostgreSQL, and Kafka | Kafka Connect, a logical replication slot, `wal_level=logical` |
 | Latency | Up to the polling interval (5 s) | Near real time, from the WAL |
 | Database load | Periodic `SELECT … FOR UPDATE SKIP LOCKED` on the outbox | Reads the WAL; no queries against the outbox table |
-| Outbox bookkeeping | Rows marked `PUBLISHED` or `FAILED` after 5 attempts | Rows are not marked or removed |
+| Outbox bookkeeping | Rows marked `PUBLISHED` or `FAILED` after 5 attempts | Rows deleted after 24 h (`app.outbox.cdc-retention-hours`); Debezium's EventRouter ignores the deletes |
 | Operations | Easy to run and debug locally | Connector and slot must be monitored; a stopped connector retains WAL |
 
 Polling is the default because it works without extra infrastructure and is easy to reason about. CDC suits higher throughput and lower latency once Kafka Connect is operated anyway.
@@ -88,7 +88,6 @@ Polling is the default because it works without extra infrastructure and is easy
 - **Polling outbox across replicas.** Pollers lock their batch with `FOR UPDATE SKIP LOCKED`, so several replicas share the work instead of blocking each other. To keep per-aggregate order, a poller skips an aggregate while another poller holds an older event of it. Locks are still held while Kafka sends run (up to 3 s each, 50 rows per batch). The Kubernetes deployment runs one replica.
 - **Events that end up `FAILED`.** A failed send holds back the aggregate's later events until it succeeds on retry. After five failed attempts the event is marked `FAILED` and skipped, and the aggregate's later events are published without it.
 - **At-least-once delivery.** The poller sends to Kafka before its transaction commits; a crash in between republishes the batch. Consumers must stay idempotent.
-- **CDC mode never cleans up the outbox.** Rows stay `PENDING` and the table grows; a retention job is needed.
 - **Eventual consistency.** Query endpoints may briefly return stale data after a command succeeds.
 
 ## How this project was built
