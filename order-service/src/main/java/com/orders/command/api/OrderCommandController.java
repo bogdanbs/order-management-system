@@ -7,7 +7,6 @@ import com.orders.command.application.commands.CreateOrderCommand;
 import com.orders.command.application.commands.RemoveOrderItemCommand;
 import com.orders.command.application.commands.SubmitOrderCommand;
 import com.orders.command.application.handlers.OrderCommandHandler;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -65,11 +64,5 @@ public class OrderCommandController {
     public ResponseEntity<Void> cancel(@PathVariable UUID id, @RequestBody @Validated CancelRequest req) {
         handler.cancel(new CancelOrderCommand(id, req.reason()));
         return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/{id}/submit-async")
-    public ResponseEntity<String> submitAsync() {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
-                .body("Asynchronous submission is unavailable; use POST /api/orders/{id}/submit.");
     }
 }

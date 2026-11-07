@@ -25,7 +25,6 @@ The local Compose demo uses `orders_pass` for PostgreSQL and `admin` for Grafana
 - `DELETE /api/orders/{id}/items/{productId}` removes one unit. The line remains until its quantity reaches zero.
 - `POST /api/orders/{id}/submit` submits the order.
 - `POST /api/orders/{id}/confirm-payment` confirms payment only when the amount exactly matches the order total. Repeating the same payment ID and amount is idempotent; another payment after confirmation is rejected.
-- `POST /api/orders/{id}/submit-async` returns `501 Not Implemented`; no command consumer is configured. Use the synchronous submit endpoint.
 
 Kafka projection processing retries failed events three times after the initial attempt, then publishes them to `order.events.dlq`. Database changes and the processed-event marker share a transaction; the consumer offset advances only after successful processing.
 
