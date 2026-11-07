@@ -8,7 +8,9 @@ from pathlib import Path
 
 # (ConfigMap manifest, data key, source file)
 COPIES = [
+    ("k8s/02-configmaps.yaml", "prometheus.yml", "infrastructure/prometheus/prometheus.yml"),
     ("k8s/02-configmaps.yaml", "alerts.yml", "infrastructure/prometheus/alerts.yml"),
+    ("k8s/02-configmaps.yaml", "alertmanager.yml", "infrastructure/alertmanager/alertmanager.yml"),
     ("k8s/14-grafana-dashboard.yaml", "order-outbox.json",
      "infrastructure/grafana/provisioning/dashboards/order-outbox.json"),
 ]

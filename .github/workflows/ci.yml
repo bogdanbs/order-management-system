@@ -45,5 +45,21 @@ jobs:
           docker run --rm -v "$PWD/infrastructure/prometheus:/etc/prometheus"
           --entrypoint promtool prom/prometheus:v2.53.0 check config /etc/prometheus/prometheus.yml
 
+      # Same Alertmanager image as docker-compose.yml and k8s/15-alertmanager.yaml.
+      - name: Check Alertmanager config
+        run: >-
+          docker run --rm -v "$PWD/infrastructure/alertmanager:/etc/alertmanager"
+          --entrypoint amtool prom/alertmanager:v0.27.0 check-config /etc/alertmanager/alertmanager.yml
+
+      - name: Test outbox alert routes to Slack
+        run: >-
+          docker run --rm -v "$PWD/infrastructure/alertmanager:/etc/alertmanager"
+          --entrypoint amtool prom/alertmanager:v0.27.0 config routes test
+          --config.file=/etc/alertmanager/alertmanager.yml --verify.receivers=slack
+          alertname=OutboxRecordsFailed severity=warning
+
+      - name: Test Slack notification end to end
+        run: bash scripts/test-alertmanager-notification.sh
+
       - name: Check k8s ConfigMaps match their sources
         run: python3 scripts/check-k8s-monitoring-sync.py

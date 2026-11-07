@@ -16,17 +16,24 @@ metadata:
   name: prometheus-config
   namespace: orders
 data:
+  # prometheus.yml and alerts.yml must match infrastructure/prometheus/ (scripts/check-k8s-monitoring-sync.py).
   prometheus.yml: |
     global:
       scrape_interval: 15s
+
     rule_files:
       - alerts.yml
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
     scrape_configs:
       - job_name: order-service
         metrics_path: /actuator/prometheus
         static_configs:
           - targets: ['order-service:8080']
-  # Keep in sync with infrastructure/prometheus/alerts.yml (tested with promtool in CI).
   alerts.yml: |
     groups:
       - name: outbox
@@ -42,6 +49,31 @@ data:
               description: >-
                 {{ $value }} outbox records are FAILED after exhausting their retries; their events never reached Kafka.
                 Inspect outbox.outbox_events WHERE status = 'FAILED'.
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: orders
+data:
+  # Must match infrastructure/alertmanager/alertmanager.yml (scripts/check-k8s-monitoring-sync.py).
+  alertmanager.yml: |
+    route:
+      receiver: slack
+      group_by: [alertname]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+
+    receivers:
+      - name: slack
+        slack_configs:
+          # Written from SLACK_WEBHOOK_URL at container start (Compose) or mounted from a Secret (Kubernetes).
+          - api_url_file: /alertmanager/secrets/slack_webhook_url
+            send_resolved: true
+            title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+            text: "{{ range .Alerts }}*{{ .Annotations.summary }}* ({{ .Labels.severity }})\n{{ .Annotations.description }}\n{{ end }}"
 
 ---
 apiVersion: v1

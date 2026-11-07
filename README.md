@@ -14,7 +14,9 @@ mvn verify                   # plus Testcontainers integration tests (needs Dock
 docker compose up --build
 ```
 
-The local Compose demo uses `orders_pass` for PostgreSQL and `admin` for Grafana when no environment variables are set. These are demo-only defaults. Set `ORDERS_DB_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` before starting Compose to use different values. Grafana is available at <http://localhost:3001>; the order API is at <http://localhost:8090>.
+The local Compose demo uses `orders_pass` for PostgreSQL and `admin` for Grafana when no environment variables are set. These are demo-only defaults. Set `ORDERS_DB_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` before starting Compose to use different values. Grafana is available at <http://localhost:3001>; the order API is at <http://localhost:8090>; Alertmanager is at <http://localhost:9093>.
+
+To receive alerts in Slack, set `SLACK_WEBHOOK_URL` to a [Slack incoming webhook](https://api.slack.com/messaging/webhooks) URL before starting Compose. Without it the stack runs normally, and Alertmanager logs failed notification attempts.
 
 ## Order API
 
@@ -88,7 +90,7 @@ Polling is the default because it works without extra infrastructure and is easy
 ### Known limitations
 
 - **Polling outbox across replicas.** Pollers lock their batch with `FOR UPDATE SKIP LOCKED`, so several replicas share the work instead of blocking each other. To keep per-aggregate order, a poller skips an aggregate while another poller holds an older event of it. Locks are still held while Kafka sends run (up to 3 s each, 50 rows per batch). The Kubernetes deployment runs one replica.
-- **Events that end up `FAILED`.** A failed send holds back the aggregate's later events until it succeeds on retry. After five failed attempts the event is marked `FAILED` and skipped, and the aggregate's later events are published without it. `FAILED` rows are never deleted automatically; the gauge `outbox_records_failed` (refreshed every 30 s, `app.outbox.metrics-refresh-ms`) counts them. The Prometheus alert `OutboxRecordsFailed` (`infrastructure/prometheus/alerts.yml`) fires once the count has been above zero for a minute, and the Grafana dashboard *Order Service — Outbox* shows it. No Alertmanager is configured, so the alert appears in Prometheus and Grafana but sends no notifications.
+- **Events that end up `FAILED`.** A failed send holds back the aggregate's later events until it succeeds on retry. After five failed attempts the event is marked `FAILED` and skipped, and the aggregate's later events are published without it. `FAILED` rows are never deleted automatically; the gauge `outbox_records_failed` (refreshed every 30 s, `app.outbox.metrics-refresh-ms`) counts them. The Prometheus alert `OutboxRecordsFailed` (`infrastructure/prometheus/alerts.yml`) fires once the count has been above zero for a minute, and the Grafana dashboard *Order Service — Outbox* shows it. Alertmanager posts firing and resolved alerts to Slack, repeating every 4 h while they last.
 - **At-least-once delivery.** The poller sends to Kafka before its transaction commits; a crash in between republishes the batch. Consumers must stay idempotent.
 - **Eventual consistency.** Query endpoints may briefly return stale data after a command succeeds.
 

@@ -55,11 +55,12 @@ Create strong values locally; do not commit them. The checked-in secret template
 ```bash
 export ORDERS_DB_PASSWORD='replace-with-a-strong-database-password'
 export GRAFANA_ADMIN_PASSWORD='replace-with-a-strong-grafana-password'
+export SLACK_WEBHOOK_URL='https://hooks.slack.com/services/...'   # optional, for alert notifications
 
 envsubst < k8s/01-secrets.yaml.example | kubectl apply -f -
 ```
 
-The database and Grafana credentials are read from Kubernetes Secrets. In CDC mode, the order service passes its database password from the Secret to Kafka Connect when registering the connector.
+The database and Grafana credentials and the Slack webhook URL are read from Kubernetes Secrets. Without a webhook URL, Alertmanager still runs and logs failed notification attempts. In CDC mode, the order service passes its database password from the Secret to Kafka Connect when registering the connector.
 
 ```bash
 kubectl apply -f k8s/
@@ -100,6 +101,9 @@ kubectl -n orders port-forward svc/jaeger 16686:16686
 
 # Prometheus → http://localhost:9090
 kubectl -n orders port-forward svc/prometheus 9090:9090
+
+# Alertmanager → http://localhost:9093  (links in Slack messages point here)
+kubectl -n orders port-forward svc/alertmanager 9093:9093
 ```
 
 ## 5. Outbox mode
@@ -141,4 +145,5 @@ kubectl -n orders delete deployments,statefulsets,services,configmaps,secrets --
 | kafka | — | 9092 |
 | kafka-connect | — | 8083 |
 | prometheus | — | 9090 |
+| alertmanager | — | 9093 |
 | loki | — | 3100 |

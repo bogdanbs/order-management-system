@@ -93,6 +93,27 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+    depends_on:
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: orders-alertmanager
+    ports:
+      - "9093:9093"
+    environment:
+      # Optional: without it the stack runs, but Slack notifications fail and are logged.
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        mkdir -p /alertmanager/secrets &&
+        printf '%s' "$$SLACK_WEBHOOK_URL" > /alertmanager/secrets/slack_webhook_url &&
+        exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager
+        --web.external-url=http://localhost:9093
 
   grafana:
     image: grafana/grafana:11.0.0

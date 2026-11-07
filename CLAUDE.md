@@ -22,8 +22,9 @@ mvn -pl order-service test      # unit + slice tests only, no Docker needed
 Integration tests need a running Docker daemon (Testcontainers).
 
 Monitoring config (CI job `monitoring`): Prometheus alert rules are tested with
-`promtool test rules infrastructure/prometheus/alerts.test.yml`, and the k8s ConfigMaps that embed
-`alerts.yml` and Grafana dashboards must stay identical to their sources
+`promtool test rules infrastructure/prometheus/alerts.test.yml`; Slack delivery through Alertmanager is
+tested end to end with `bash scripts/test-alertmanager-notification.sh` (Docker, ~45 s). The k8s ConfigMaps
+that embed Prometheus, Alertmanager and Grafana files must stay identical to their sources
 (`python3 scripts/check-k8s-monitoring-sync.py`).
 
 ## Test conventions
