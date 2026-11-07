@@ -3,6 +3,7 @@ package com.orders.infrastructure.config;
 import com.orders.infrastructure.messaging.KafkaTopics;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
@@ -73,9 +74,11 @@ public class KafkaConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
-        factory.setCommonErrorHandler(new DefaultErrorHandler(
-                new DeadLetterPublishingRecoverer(kafkaTemplate),
-                new FixedBackOff(1000L, 3L)));
+        // Without a resolver, spring-kafka routes to "<topic>-dlt" instead of the declared DLQ topic.
+        // Both topics have the same partition count, so the source partition is kept.
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,
+                (record, ex) -> new TopicPartition(KafkaTopics.ORDER_DLQ, record.partition()));
+        factory.setCommonErrorHandler(new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L)));
         return factory;
     }
 }

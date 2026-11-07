@@ -60,7 +60,7 @@ flowchart LR
     poller --> kafka{{Kafka order.events}}
     debezium --> kafka
     kafka --> projection
-    projection -->|after 3 retries| dlq{{Dead-letter topic}}
+    projection -->|after 3 retries| dlq{{Kafka order.events.dlq}}
 ```
 
 ### Why event sourcing, CQRS, and an outbox
