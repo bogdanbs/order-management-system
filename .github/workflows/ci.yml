@@ -58,8 +58,9 @@ jobs:
           --config.file=/etc/alertmanager/alertmanager.yml --verify.receivers=slack
           alertname=OutboxRecordsFailed severity=warning
 
-      - name: Test Slack notification end to end
-        run: bash scripts/test-alertmanager-notification.sh
+      # Prometheus scrapes a fake target, fires OutboxRecordsFailed, and Alertmanager posts it to a fake Slack.
+      - name: Test alert pipeline end to end
+        run: bash scripts/test-alert-pipeline.sh
 
       - name: Check k8s ConfigMaps match their sources
         run: python3 scripts/check-k8s-monitoring-sync.py
