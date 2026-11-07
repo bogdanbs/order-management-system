@@ -19,11 +19,29 @@ data:
   prometheus.yml: |
     global:
       scrape_interval: 15s
+    rule_files:
+      - alerts.yml
     scrape_configs:
       - job_name: order-service
         metrics_path: /actuator/prometheus
         static_configs:
           - targets: ['order-service:8080']
+  # Keep in sync with infrastructure/prometheus/alerts.yml (tested with promtool in CI).
+  alerts.yml: |
+    groups:
+      - name: outbox
+        rules:
+          # Every replica reports the same database count, so max() yields one alert instead of one per instance.
+          - alert: OutboxRecordsFailed
+            expr: max(outbox_records_failed) > 0
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: Outbox events failed to publish
+              description: >-
+                {{ $value }} outbox records are FAILED after exhausting their retries; their events never reached Kafka.
+                Inspect outbox.outbox_events WHERE status = 'FAILED'.
 
 ---
 apiVersion: v1

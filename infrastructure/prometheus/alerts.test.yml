@@ -1,0 +1,33 @@
+# Run with: promtool test rules alerts.test.yml
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  - interval: 15s
+    input_series:
+      # 0 until 2m, 2 failed records from 2m15s to 4m15s, handled (0) from 4m30s.
+      - series: 'outbox_records_failed{job="order-service", instance="order-service:8080"}'
+        values: '0x8 2x8 0x8'
+    alert_rule_test:
+      - eval_time: 1m30s
+        alertname: OutboxRecordsFailed
+        exp_alerts: []
+      # Pending, not yet firing: the condition has held for less than 1m.
+      - eval_time: 2m45s
+        alertname: OutboxRecordsFailed
+        exp_alerts: []
+      - eval_time: 3m45s
+        alertname: OutboxRecordsFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Outbox events failed to publish
+              description: >-
+                2 outbox records are FAILED after exhausting their retries; their events never reached Kafka.
+                Inspect outbox.outbox_events WHERE status = 'FAILED'.
+      - eval_time: 5m
+        alertname: OutboxRecordsFailed
+        exp_alerts: []

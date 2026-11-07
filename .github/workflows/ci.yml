@@ -28,3 +28,22 @@ jobs:
           path: |
             **/target/surefire-reports/
             **/target/failsafe-reports/
+
+  monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same Prometheus image as docker-compose.yml and k8s/10-prometheus.yaml.
+      - name: Test alert rules
+        run: >-
+          docker run --rm -v "$PWD/infrastructure/prometheus:/etc/prometheus" -w /etc/prometheus
+          --entrypoint promtool prom/prometheus:v2.53.0 test rules alerts.test.yml
+
+      - name: Check Prometheus config
+        run: >-
+          docker run --rm -v "$PWD/infrastructure/prometheus:/etc/prometheus"
+          --entrypoint promtool prom/prometheus:v2.53.0 check config /etc/prometheus/prometheus.yml
+
+      - name: Check k8s ConfigMaps match their sources
+        run: python3 scripts/check-k8s-monitoring-sync.py

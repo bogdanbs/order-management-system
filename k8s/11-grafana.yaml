@@ -41,6 +41,9 @@ spec:
             - name: grafana-dashboard-traces
               mountPath: /etc/grafana/provisioning/dashboards/order-traces.json
               subPath: order-traces.json
+            - name: grafana-dashboard-outbox
+              mountPath: /etc/grafana/provisioning/dashboards/order-outbox.json
+              subPath: order-outbox.json
           readinessProbe:
             httpGet:
               path: /api/health
@@ -67,6 +70,9 @@ spec:
         - name: grafana-dashboard-traces
           configMap:
             name: grafana-dashboard-traces
+        - name: grafana-dashboard-outbox
+          configMap:
+            name: grafana-dashboard-outbox
 
 ---
 apiVersion: v1

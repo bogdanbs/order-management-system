@@ -25,6 +25,9 @@ spec:
             - name: prometheus-config
               mountPath: /etc/prometheus/prometheus.yml
               subPath: prometheus.yml
+            - name: prometheus-config
+              mountPath: /etc/prometheus/alerts.yml
+              subPath: alerts.yml
             - name: prometheus-storage
               mountPath: /prometheus
           readinessProbe:
