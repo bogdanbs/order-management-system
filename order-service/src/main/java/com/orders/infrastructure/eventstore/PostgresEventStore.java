@@ -36,7 +36,9 @@ public class PostgresEventStore implements EventStore {
             record.setPayload(serializePayload(event));
             record.setMetadata(serializeMetadata(event.getMetadata()));
             try {
-                repo.save(record);
+                // Flush now: inside the caller's transaction the unique-key violation would otherwise only
+                // surface at commit, bypassing this translation and @RetryOnConcurrency.
+                repo.saveAndFlush(record);
             } catch (DataIntegrityViolationException e) {
                 throw new OptimisticConcurrencyException(
                         "Concurrent write on aggregate " + aggregateId + " at seq " + seq, e);
