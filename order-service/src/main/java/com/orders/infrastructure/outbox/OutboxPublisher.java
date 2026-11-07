@@ -29,7 +29,7 @@ public class OutboxPublisher {
     @Scheduled(fixedDelayString = "${app.outbox.polling-interval-ms:5000}")
     @Transactional
     public void publishPending() {
-        List<OutboxRecord> pending = outboxRepository.findTop50ByStatusOrderByCreatedAtAsc("PENDING");
+        List<OutboxRecord> pending = outboxRepository.lockNextBatch();
         for (OutboxRecord record : pending) {
             try {
                 kafkaTemplate.send(record.getTopic(), record.getAggregateId().toString(), record.getPayload())

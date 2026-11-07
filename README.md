@@ -77,7 +77,7 @@ The relay is selected with `APP_OUTBOX_MODE` (`polling` by default, or `cdc`).
 |---|---|---|
 | Moving parts | Only the service, PostgreSQL, and Kafka | Kafka Connect, a logical replication slot, `wal_level=logical` |
 | Latency | Up to the polling interval (5 s) | Near real time, from the WAL |
-| Database load | Periodic `SELECT … FOR UPDATE` on the outbox | Reads the WAL; no queries against the outbox table |
+| Database load | Periodic `SELECT … FOR UPDATE SKIP LOCKED` on the outbox | Reads the WAL; no queries against the outbox table |
 | Outbox bookkeeping | Rows marked `PUBLISHED` or `FAILED` after 5 attempts | Rows are not marked or removed |
 | Operations | Easy to run and debug locally | Connector and slot must be monitored; a stopped connector retains WAL |
 
@@ -85,7 +85,8 @@ Polling is the default because it works without extra infrastructure and is easy
 
 ### Known limitations
 
-- **Polling outbox does not scale out.** `OutboxRepository` locks pending rows with `PESSIMISTIC_WRITE` (`FOR UPDATE`) but without `SKIP LOCKED`. With several replicas, a second poller blocks on the rows the first one holds instead of taking the next batch. Replicas therefore serialize rather than share the work, and locks are held while Kafka sends run (up to 3 s each, 50 rows per batch). The Kubernetes deployment runs one replica. Scaling out needs `FOR UPDATE SKIP LOCKED`, leader election, or CDC mode.
+- **Polling outbox across replicas.** Pollers lock their batch with `FOR UPDATE SKIP LOCKED`, so several replicas share the work instead of blocking each other. To keep per-aggregate order, a poller skips an aggregate while another poller holds an older event of it. Locks are still held while Kafka sends run (up to 3 s each, 50 rows per batch). The Kubernetes deployment runs one replica.
+- **Failed sends within a batch.** If publishing one event fails, later events of the same aggregate in the same batch are still sent, so that aggregate's order can break until the failed event is retried.
 - **At-least-once delivery.** The poller sends to Kafka before its transaction commits; a crash in between republishes the batch. Consumers must stay idempotent.
 - **CDC mode never cleans up the outbox.** Rows stay `PENDING` and the table grows; a retention job is needed.
 - **Eventual consistency.** Query endpoints may briefly return stale data after a command succeeds.
