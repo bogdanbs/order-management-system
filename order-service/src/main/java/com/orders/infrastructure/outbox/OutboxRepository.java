@@ -41,4 +41,9 @@ public interface OutboxRepository extends JpaRepository<OutboxRecord, UUID> {
     @Modifying
     @Query("DELETE FROM OutboxRecord r WHERE r.createdAt < :cutoff")
     int deleteCreatedBefore(@Param("cutoff") Instant cutoff);
+
+    @Transactional
+    @Modifying
+    @Query("DELETE FROM OutboxRecord r WHERE r.status = 'PUBLISHED' AND r.processedAt < :cutoff")
+    int deletePublishedBefore(@Param("cutoff") Instant cutoff);
 }

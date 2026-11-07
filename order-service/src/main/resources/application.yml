@@ -41,8 +41,8 @@ app:
   outbox:
     mode: ${APP_OUTBOX_MODE:polling}
     polling-interval-ms: 5000
-    # CDC mode only: delete outbox rows once Debezium has had time to capture them.
-    cdc-retention-hours: 24
+    # Published rows (polling) or all rows (CDC) are deleted after this many hours.
+    retention-hours: 24
     cleanup-interval-ms: 3600000
   snapshot:
     threshold: 50
