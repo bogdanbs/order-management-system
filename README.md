@@ -86,7 +86,7 @@ Polling is the default because it works without extra infrastructure and is easy
 ### Known limitations
 
 - **Polling outbox across replicas.** Pollers lock their batch with `FOR UPDATE SKIP LOCKED`, so several replicas share the work instead of blocking each other. To keep per-aggregate order, a poller skips an aggregate while another poller holds an older event of it. Locks are still held while Kafka sends run (up to 3 s each, 50 rows per batch). The Kubernetes deployment runs one replica.
-- **Failed sends within a batch.** If publishing one event fails, later events of the same aggregate in the same batch are still sent, so that aggregate's order can break until the failed event is retried.
+- **Events that end up `FAILED`.** A failed send holds back the aggregate's later events until it succeeds on retry. After five failed attempts the event is marked `FAILED` and skipped, and the aggregate's later events are published without it.
 - **At-least-once delivery.** The poller sends to Kafka before its transaction commits; a crash in between republishes the batch. Consumers must stay idempotent.
 - **CDC mode never cleans up the outbox.** Rows stay `PENDING` and the table grows; a retention job is needed.
 - **Eventual consistency.** Query endpoints may briefly return stale data after a command succeeds.

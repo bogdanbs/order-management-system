@@ -9,7 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -30,13 +33,19 @@ public class OutboxPublisher {
     @Transactional
     public void publishPending() {
         List<OutboxRecord> pending = outboxRepository.lockNextBatch();
+        // An aggregate's later events wait for the next poll once one of its events fails, to keep their order.
+        Set<UUID> blockedAggregates = new HashSet<>();
         for (OutboxRecord record : pending) {
+            if (blockedAggregates.contains(record.getAggregateId())) {
+                continue;
+            }
             try {
                 kafkaTemplate.send(record.getTopic(), record.getAggregateId().toString(), record.getPayload())
                         .get(3, TimeUnit.SECONDS);
                 record.setStatus("PUBLISHED");
                 record.setProcessedAt(Instant.now());
             } catch (Exception e) {
+                blockedAggregates.add(record.getAggregateId());
                 record.setRetryCount(record.getRetryCount() + 1);
                 if (record.getRetryCount() >= MAX_RETRIES) {
                     record.setStatus("FAILED");
