@@ -28,6 +28,73 @@ The local Compose demo uses `orders_pass` for PostgreSQL and `admin` for Grafana
 
 Kafka projection processing retries failed events three times after the initial attempt, then publishes them to `order.events.dlq`. Database changes and the processed-event marker share a transaction; the consumer offset advances only after successful processing.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    client([Client])
+
+    subgraph write[Write side]
+        cmdApi[Command API] --> handler[OrderCommandHandler]
+        handler -->|load / append| es[(event_store)]
+        handler -->|every 50 events| snap[(snapshots)]
+        handler -->|same transaction| outbox[(outbox_events)]
+    end
+
+    subgraph relay[Outbox relay]
+        poller[OutboxPublisher<br/>mode=polling]
+        debezium[Debezium EventRouter<br/>mode=cdc]
+    end
+
+    subgraph read[Read side]
+        projection[OrderProjectionHandler] --> readModel[(query_side<br/>read model)]
+        queryApi[Query API] --> readModel
+        rebuild[Projection rebuild] -->|replay| es
+        rebuild --> readModel
+    end
+
+    client -->|commands| cmdApi
+    client -->|queries| queryApi
+    outbox --> poller
+    outbox -.->|WAL| debezium
+    poller --> kafka{{Kafka order.events}}
+    debezium --> kafka
+    kafka --> projection
+    projection -->|after 3 retries| dlq{{Dead-letter topic}}
+```
+
+### Why event sourcing, CQRS, and an outbox
+
+- **Event sourcing.** The `Order` aggregate is rebuilt from its events, not loaded from a mutable row. Every state change is kept with its business meaning (`OrderItemRemoved`, `OrderPaymentConfirmed`), which gives an audit trail, makes `GET /api/orders/{id}/events` possible, and lets read models be rebuilt from history. Concurrent writers are detected through the unique `(aggregate_id, sequence_number)` key and retried. Snapshots bound replay cost, and upcasters (`OrderCreated` v1 → v2) let the event schema evolve without rewriting stored events.
+- **CQRS.** Writes validate invariants on the aggregate; reads hit denormalized tables shaped for queries, such as the customer-name lookup. The two sides scale and change independently, and a broken projection can be fixed and replayed through `POST /admin/projections/rebuild`.
+- **Transactional outbox.** Events are written to the event store and the outbox in one PostgreSQL transaction. That avoids the dual-write problem: an event is never committed without eventually reaching Kafka, and nothing reaches Kafka for a rolled-back command. Delivery is at-least-once, so the projection deduplicates by event ID (`processed_events`) in the same transaction as its read-model update.
+
+### Polling vs. CDC
+
+The relay is selected with `APP_OUTBOX_MODE` (`polling` by default, or `cdc`).
+
+| | Polling (`OutboxPublisher`) | CDC (Debezium) |
+|---|---|---|
+| Moving parts | Only the service, PostgreSQL, and Kafka | Kafka Connect, a logical replication slot, `wal_level=logical` |
+| Latency | Up to the polling interval (5 s) | Near real time, from the WAL |
+| Database load | Periodic `SELECT … FOR UPDATE` on the outbox | Reads the WAL; no queries against the outbox table |
+| Outbox bookkeeping | Rows marked `PUBLISHED` or `FAILED` after 5 attempts | Rows are not marked or removed |
+| Operations | Easy to run and debug locally | Connector and slot must be monitored; a stopped connector retains WAL |
+
+Polling is the default because it works without extra infrastructure and is easy to reason about. CDC suits higher throughput and lower latency once Kafka Connect is operated anyway.
+
+### Known limitations
+
+- **Polling outbox does not scale out.** `OutboxRepository` locks pending rows with `PESSIMISTIC_WRITE` (`FOR UPDATE`) but without `SKIP LOCKED`. With several replicas, a second poller blocks on the rows the first one holds instead of taking the next batch. Replicas therefore serialize rather than share the work, and locks are held while Kafka sends run (up to 3 s each, 50 rows per batch). The Kubernetes deployment runs one replica. Scaling out needs `FOR UPDATE SKIP LOCKED`, leader election, or CDC mode.
+- **At-least-once delivery.** The poller sends to Kafka before its transaction commits; a crash in between republishes the batch. Consumers must stay idempotent.
+- **CDC mode never cleans up the outbox.** Rows stay `PENDING` and the table grows; a retention job is needed.
+- **Eventual consistency.** Query endpoints may briefly return stale data after a command succeeds.
+- **Retry and transaction ordering.** `@RetryOnConcurrency` only helps if it wraps the transaction, because PostgreSQL aborts the transaction after a constraint violation. The aspect has no explicit `@Order` relative to `@Transactional`, and no test covers this path yet.
+
+## How this project was built
+
+This project was developed with [Claude Code](https://claude.com/claude-code) and extended with GitHub Copilot.
+
 ## Kubernetes
 
 See [`k8s/README.md`](k8s/README.md) for image build, secret setup, deployment, and service access instructions. Create credentials from the checked-in `k8s/01-secrets.yaml.example` template; do not commit rendered secrets.
