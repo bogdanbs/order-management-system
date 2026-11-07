@@ -1,5 +1,7 @@
 # Order Management System
 
+[![CI](https://github.com/bogdanbs/order-management-system/actions/workflows/ci.yml/badge.svg)](https://github.com/bogdanbs/order-management-system/actions/workflows/ci.yml)
+
 A Spring Boot order service demonstrating event sourcing, an outbox, Kafka projections, PostgreSQL, and a Kubernetes deployment.
 
 ## Run locally
@@ -7,7 +9,8 @@ A Spring Boot order service demonstrating event sourcing, an outbox, Kafka proje
 Requirements: Java 21 or later, Maven, and Docker Compose.
 
 ```bash
-mvn -pl order-service test
+mvn -pl order-service test   # unit and slice tests
+mvn verify                   # plus Testcontainers integration tests (needs Docker)
 docker compose up --build
 ```
 
