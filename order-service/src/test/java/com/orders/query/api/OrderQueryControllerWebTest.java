@@ -7,7 +7,7 @@ import com.orders.query.repository.OrderSummaryRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -20,17 +20,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(OrderQueryController.class)
-class OrderQueryControllerIntegrationTest {
+class OrderQueryControllerWebTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private OrderSummaryRepository summaryRepo;
 
-    @MockBean
+    @MockitoBean
     private OrderItemViewRepository itemRepo;
 
-    @MockBean
+    @MockitoBean
     private EventStoreRepository eventStoreRepo;
 
     @Test
