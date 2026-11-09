@@ -54,7 +54,7 @@ class OutboxPublisherIT {
         Order order = Order.create(orderId, "Grace", "Hopper", "1 Navy Yard");
         order.addItem(UUID.randomUUID(), "Compiler", 1, new BigDecimal("99.00"));
         List<DomainEvent> events = order.drainPendingEvents();
-        tx.executeWithoutResult(status -> outboxService.write(events, orderId, "Order"));
+        tx.executeWithoutResult(status -> outboxService.write(events, orderId, "Order", 0));
 
         outboxPublisher.publishPending();
 
@@ -74,7 +74,7 @@ class OutboxPublisherIT {
     void publishedEventsReachTheReadModelProjection() {
         UUID orderId = UUID.randomUUID();
         List<DomainEvent> events = Order.create(orderId, "Grace", "Hopper", "1 Navy Yard").drainPendingEvents();
-        tx.executeWithoutResult(status -> outboxService.write(events, orderId, "Order"));
+        tx.executeWithoutResult(status -> outboxService.write(events, orderId, "Order", 0));
 
         outboxPublisher.publishPending();
 

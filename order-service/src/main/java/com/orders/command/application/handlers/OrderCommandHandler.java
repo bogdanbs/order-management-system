@@ -28,6 +28,7 @@ import java.util.UUID;
 @Transactional
 public class OrderCommandHandler {
     private static final Logger log = LoggerFactory.getLogger(OrderCommandHandler.class);
+    public static final String ORDER = "Order";
 
     private final EventStore eventStore;
     private final OutboxService outboxService;
@@ -49,9 +50,9 @@ public class OrderCommandHandler {
         log.info("Creating order {} for {} {}", cmd.orderId(), cmd.firstName(), cmd.lastName());
         Order order = Order.create(cmd.orderId(), cmd.firstName(), cmd.lastName(), cmd.shippingAddress());
         List<DomainEvent> events = order.drainPendingEvents();
-        eventStore.append(events, cmd.orderId(), "Order", 0);
-        outboxService.write(events, cmd.orderId(), "Order");
-        snapshotService.saveIfThreshold(order, cmd.orderId(), "Order");
+        eventStore.append(events, cmd.orderId(), ORDER, 0);
+        outboxService.write(events, cmd.orderId(), ORDER, 0);
+        snapshotService.saveIfThreshold(order, cmd.orderId(), ORDER);
         log.info("Order {} created", cmd.orderId());
         return cmd.orderId();
     }
@@ -61,7 +62,7 @@ public class OrderCommandHandler {
         log.info("Adding item {} (qty={}) to order {}", cmd.productName(), cmd.quantity(), cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.addItem(cmd.productId(), cmd.productName(), cmd.quantity(), cmd.unitPrice());
-        persistChanges(order, cmd.orderId(), "Order");
+        persistChanges(order, cmd.orderId(), ORDER);
     }
 
     @RetryOnConcurrency
@@ -69,7 +70,7 @@ public class OrderCommandHandler {
         log.info("Removing item {} from order {}", cmd.productId(), cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.removeItem(cmd.productId(), cmd.quantity());
-        persistChanges(order, cmd.orderId(), "Order");
+        persistChanges(order, cmd.orderId(), ORDER);
     }
 
     @RetryOnConcurrency
@@ -77,7 +78,7 @@ public class OrderCommandHandler {
         log.info("Submitting order {}", cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.submit();
-        persistChanges(order, cmd.orderId(), "Order");
+        persistChanges(order, cmd.orderId(), ORDER);
         log.info("Order {} submitted", cmd.orderId());
     }
 
@@ -86,7 +87,7 @@ public class OrderCommandHandler {
         log.info("Confirming payment {} for order {}", cmd.paymentId(), cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.confirmPayment(cmd.paymentId(), cmd.amount());
-        persistChanges(order, cmd.orderId(), "Order");
+        persistChanges(order, cmd.orderId(), ORDER);
         log.info("Order {} payment confirmed", cmd.orderId());
     }
 
@@ -95,7 +96,7 @@ public class OrderCommandHandler {
         log.info("Cancelling order {}: {}", cmd.orderId(), cmd.reason());
         Order order = loadOrder(cmd.orderId());
         order.cancel(cmd.reason());
-        persistChanges(order, cmd.orderId(), "Order");
+        persistChanges(order, cmd.orderId(), ORDER);
         log.info("Order {} cancelled", cmd.orderId());
     }
 
@@ -116,8 +117,9 @@ public class OrderCommandHandler {
 
     private void persistChanges(Order order, UUID orderId, String aggregateType) {
         List<DomainEvent> events = order.drainPendingEvents();
-        eventStore.append(events, orderId, aggregateType, order.getVersion() - events.size());
-        outboxService.write(events, orderId, aggregateType);
+        long expectedVersion = order.getVersion() - events.size();
+        eventStore.append(events, orderId, aggregateType, expectedVersion);
+        outboxService.write(events, orderId, aggregateType, expectedVersion);
         snapshotService.saveIfThreshold(order, orderId, aggregateType);
     }
 }

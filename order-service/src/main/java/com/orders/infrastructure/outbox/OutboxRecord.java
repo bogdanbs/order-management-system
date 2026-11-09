@@ -17,6 +17,9 @@ public class OutboxRecord {
     @Column(name = "aggregate_id", nullable = false)
     private UUID aggregateId;
 
+    @Column(name = "sequence_number", nullable = false)
+    private long sequenceNumber;
+
     @Column(name = "aggregate_type", nullable = false)
     private String aggregateType;
 
@@ -55,6 +58,14 @@ public class OutboxRecord {
 
     public void setAggregateId(UUID aggregateId) {
         this.aggregateId = aggregateId;
+    }
+
+    public long getSequenceNumber() {
+        return sequenceNumber;
+    }
+
+    public void setSequenceNumber(long sequenceNumber) {
+        this.sequenceNumber = sequenceNumber;
     }
 
     public String getAggregateType() {

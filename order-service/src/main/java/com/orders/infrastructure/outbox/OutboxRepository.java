@@ -12,15 +12,15 @@ import java.util.UUID;
 
 public interface OutboxRepository extends JpaRepository<OutboxRecord, UUID> {
     /**
-     * Locks the next pending batch for this poller. SKIP LOCKED lets several replicas poll in parallel; rows
-     * whose aggregate has an older pending row held by another poller are left out so that each aggregate's
-     * events are still published in order.
+     * Claims the next available batch. Expired claims are recovered after a crashed poller; older pending or
+     * in-flight events prevent later events of the same aggregate from being claimed out of order.
      */
     @Query(nativeQuery = true, value = """
             WITH batch AS (
                 SELECT id FROM outbox.outbox_events
                 WHERE status = 'PENDING'
-                ORDER BY created_at
+                   OR (status = 'IN_FLIGHT' AND processed_at < now() - INTERVAL '5 minutes')
+                ORDER BY created_at, id
                 LIMIT 50
                 FOR UPDATE SKIP LOCKED
             )
@@ -29,11 +29,11 @@ public interface OutboxRepository extends JpaRepository<OutboxRecord, UUID> {
             WHERE NOT EXISTS (
                 SELECT 1 FROM outbox.outbox_events older
                 WHERE older.aggregate_id = o.aggregate_id
-                  AND older.status = 'PENDING'
-                  AND older.created_at < o.created_at
+                  AND older.sequence_number < o.sequence_number
+                  AND older.status IN ('PENDING', 'IN_FLIGHT')
                   AND older.id NOT IN (SELECT id FROM batch)
             )
-            ORDER BY o.created_at
+            ORDER BY o.created_at, o.id
             """)
     List<OutboxRecord> lockNextBatch();
 

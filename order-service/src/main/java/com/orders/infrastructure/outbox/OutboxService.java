@@ -19,10 +19,12 @@ public class OutboxService {
         this.objectMapper = objectMapper;
     }
 
-    public void write(List<DomainEvent> events, UUID aggregateId, String aggregateType) {
+    public void write(List<DomainEvent> events, UUID aggregateId, String aggregateType, long expectedVersion) {
+        long sequenceNumber = expectedVersion;
         for (DomainEvent event : events) {
             OutboxRecord record = new OutboxRecord();
             record.setAggregateId(aggregateId);
+            record.setSequenceNumber(++sequenceNumber);
             record.setAggregateType(aggregateType);
             record.setEventType(event.getEventType());
             record.setPayload(serialize(event));

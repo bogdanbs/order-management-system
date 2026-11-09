@@ -44,9 +44,9 @@ class OutboxRepositoryIT {
         UUID aggregateX = UUID.randomUUID();
         UUID aggregateY = UUID.randomUUID();
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        UUID x1 = pending(aggregateX, now.minusSeconds(3));
-        UUID x2 = pending(aggregateX, now.minusSeconds(2));
-        UUID y1 = pending(aggregateY, now.minusSeconds(1));
+        UUID x1 = pending(aggregateX, 1, now.minusSeconds(3));
+        UUID x2 = pending(aggregateX, 2, now.minusSeconds(2));
+        UUID y1 = pending(aggregateY, 1, now.minusSeconds(1));
 
         List<UUID> secondBatch = new TransactionTemplate(transactionManager).execute(otherPoller -> {
             jdbc.queryForObject("SELECT id FROM outbox.outbox_events WHERE id = ? FOR UPDATE", UUID.class, x1);
@@ -61,8 +61,8 @@ class OutboxRepositoryIT {
     void returnsAllPendingRowsOfAnAggregateInOrderWhenNothingIsLocked() {
         UUID aggregate = UUID.randomUUID();
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        UUID first = pending(aggregate, now.minusSeconds(2));
-        UUID second = pending(aggregate, now.minusSeconds(1));
+        UUID first = pending(aggregate, 1, now.minusSeconds(2));
+        UUID second = pending(aggregate, 2, now.minusSeconds(1));
 
         assertThat(lockNextBatchInNewTransaction()).containsSubsequence(first, second);
     }
@@ -77,9 +77,10 @@ class OutboxRepositoryIT {
         });
     }
 
-    private UUID pending(UUID aggregateId, Instant createdAt) {
+    private UUID pending(UUID aggregateId, long sequenceNumber, Instant createdAt) {
         OutboxRecord record = new OutboxRecord();
         record.setAggregateId(aggregateId);
+        record.setSequenceNumber(sequenceNumber);
         record.setAggregateType("Order");
         record.setEventType("OrderCreated");
         record.setPayload("{}");

@@ -89,7 +89,7 @@ Polling is the default because it works without extra infrastructure and is easy
 
 ### Known limitations
 
-- **Polling outbox across replicas.** Pollers lock their batch with `FOR UPDATE SKIP LOCKED`, so several replicas share the work instead of blocking each other. To keep per-aggregate order, a poller skips an aggregate while another poller holds an older event of it. Locks are still held while Kafka sends run (up to 3 s each, 50 rows per batch). The Kubernetes deployment runs one replica.
+- **Polling outbox across replicas.** Pollers claim a batch in a short `FOR UPDATE SKIP LOCKED` transaction, then send to Kafka after database locks are released. Claims left in `IN_FLIGHT` by a crashed process are retried after five minutes. Per-aggregate sequence numbers preserve event order across replicas.
 - **Events that end up `FAILED`.** A failed send holds back the aggregate's later events until it succeeds on retry. After five failed attempts the event is marked `FAILED` and skipped, and the aggregate's later events are published without it. `FAILED` rows are never deleted automatically; the gauge `outbox_records_failed` (refreshed every 30 s, `app.outbox.metrics-refresh-ms`) counts them. The Prometheus alert `OutboxRecordsFailed` (`infrastructure/prometheus/alerts.yml`) fires once the count has been above zero for a minute, and the Grafana dashboard *Order Service — Outbox* shows it. Alertmanager posts firing and resolved alerts to Slack, repeating every 4 h while they last.
 - **At-least-once delivery.** The poller sends to Kafka before its transaction commits; a crash in between republishes the batch. Consumers must stay idempotent.
 - **Eventual consistency.** Query endpoints may briefly return stale data after a command succeeds.
