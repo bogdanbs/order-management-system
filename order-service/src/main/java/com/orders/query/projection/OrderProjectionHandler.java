@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -47,6 +48,7 @@ public class OrderProjectionHandler {
     }
 
     @KafkaListener(
+            id = "order-projection-listener",
             topics = KafkaTopics.ORDER_EVENTS,
             groupId = "order-projection",
             containerFactory = "kafkaListenerContainerFactory"
@@ -86,16 +88,27 @@ public class OrderProjectionHandler {
                     .orElseThrow(() -> new IllegalStateException("Order summary not found: " + orderId));
             summary.setTotalAmount(summary.getTotalAmount()
                     .add(e.getUnitPrice().multiply(BigDecimal.valueOf(e.getQuantity()))));
-            summary.setItemCount(summary.getItemCount() + 1);
             summary.setUpdatedAt(Instant.now());
+
+            Optional<OrderItemView> existingItem = itemRepo.findByOrderId(orderId).stream()
+                    .filter(i -> i.getProductId().equals(e.getProductId()))
+                    .findFirst();
+
+            if (existingItem.isPresent()) {
+                OrderItemView item = existingItem.get();
+                item.setQuantity(item.getQuantity() + e.getQuantity());
+                itemRepo.save(item);
+            } else {
+                summary.setItemCount(summary.getItemCount() + 1);
+                OrderItemView item = new OrderItemView();
+                item.setOrderId(orderId);
+                item.setProductId(e.getProductId());
+                item.setProductName(e.getProductName());
+                item.setQuantity(e.getQuantity());
+                item.setUnitPrice(e.getUnitPrice());
+                itemRepo.save(item);
+            }
             summaryRepo.save(summary);
-            OrderItemView item = new OrderItemView();
-            item.setOrderId(orderId);
-            item.setProductId(e.getProductId());
-            item.setProductName(e.getProductName());
-            item.setQuantity(e.getQuantity());
-            item.setUnitPrice(e.getUnitPrice());
-            itemRepo.save(item);
 
         } else if (event instanceof OrderItemRemovedEvent e) {
             OrderSummary summary = summaryRepo.findById(orderId)

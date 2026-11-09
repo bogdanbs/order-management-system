@@ -2,6 +2,7 @@ package com.orders.query.api;
 
 import com.orders.api.error.GlobalExceptionHandler;
 import com.orders.infrastructure.config.SecurityConfig;
+import com.orders.infrastructure.eventstore.EventRecord;
 import com.orders.infrastructure.eventstore.EventStoreRepository;
 import com.orders.query.model.OrderSummary;
 import com.orders.query.repository.OrderItemViewRepository;
@@ -10,15 +11,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -39,6 +44,23 @@ class OrderQueryControllerWebTest {
 
     @MockitoBean
     private EventStoreRepository eventStoreRepo;
+
+    @Test
+    void listReturnsPagedOrders() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        OrderSummary order = new OrderSummary();
+        order.setOrderId(orderId);
+        order.setFirstName("Ada");
+        order.setLastName("Lovelace");
+
+        when(summaryRepo.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(order)));
+
+        mockMvc.perform(get("/api/orders?page=0&size=10")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].orderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.content[0].firstName").value("Ada"));
+    }
 
     @Test
     void returnsCustomerOrdersAsJsonWhenAuthenticated() throws Exception {
@@ -91,5 +113,40 @@ class OrderQueryControllerWebTest {
                 .andExpect(jsonPath("$.title").value("Order Not Found"))
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()));
+    }
+
+    @Test
+    void eventsReturnsEventResponseDtos() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        EventRecord record = new EventRecord();
+        record.setId(UUID.randomUUID());
+        record.setAggregateId(orderId);
+        record.setAggregateType("Order");
+        record.setSequenceNumber(1L);
+        record.setEventType("OrderCreated");
+        record.setEventVersion(2);
+        record.setPayload("{}");
+        record.setOccurredAt(Instant.now());
+
+        when(eventStoreRepo.existsByAggregateId(orderId)).thenReturn(true);
+        when(eventStoreRepo.findByAggregateIdOrderBySequenceNumberAsc(orderId)).thenReturn(List.of(record));
+
+        mockMvc.perform(get("/api/orders/{id}/events", orderId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].aggregateId").value(orderId.toString()))
+                .andExpect(jsonPath("$[0].eventType").value("OrderCreated"))
+                .andExpect(jsonPath("$[0].eventVersion").value(2));
+    }
+
+    @Test
+    void itemsReturns404WhenOrderDoesNotExist() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(summaryRepo.existsById(orderId)).thenReturn(false);
+
+        mockMvc.perform(get("/api/orders/{id}/items", orderId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
     }
 }

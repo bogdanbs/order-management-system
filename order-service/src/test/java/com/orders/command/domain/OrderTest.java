@@ -15,6 +15,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class OrderTest {
     @Test
+    void addingSameProductAccumulatesQuantityOnSameLineItem() {
+        UUID productId = UUID.randomUUID();
+        Order order = Order.create(UUID.randomUUID(), "Ada", "Lovelace", "London");
+        order.addItem(productId, "Book", 2, new BigDecimal("12.50"));
+        order.addItem(productId, "Book", 3, new BigDecimal("12.50"));
+
+        assertEquals(1, order.getItems().size());
+        assertEquals(5, order.getItems().getFirst().getQuantity());
+
+        order.removeItem(productId, 4);
+        assertEquals(1, order.getItems().getFirst().getQuantity());
+    }
+
+    @Test
     void removingOneUnitKeepsTheRemainingQuantity() {
         UUID productId = UUID.randomUUID();
         Order order = Order.create(UUID.randomUUID(), "Ada", "Lovelace", "London");

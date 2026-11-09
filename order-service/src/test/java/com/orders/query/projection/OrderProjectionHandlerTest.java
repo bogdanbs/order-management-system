@@ -1,6 +1,7 @@
 package com.orders.query.projection;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orders.command.domain.events.OrderItemAddedEvent;
 import com.orders.command.domain.events.OrderItemRemovedEvent;
 import com.orders.infrastructure.upcasting.UpcasterChain;
 import com.orders.query.model.OrderItemView;
@@ -22,6 +23,35 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class OrderProjectionHandlerTest {
+    @Test
+    void addingExistingProductIncrementsQuantityWithoutIncreasingItemCount() {
+        UUID orderId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        OrderSummary summary = summary(orderId, 1, new BigDecimal("20.00"));
+        OrderItemView item = item(orderId, productId, 2);
+        OrderItemViewRepository itemRepo = mock(OrderItemViewRepository.class);
+        OrderSummaryRepository summaryRepo = mock(OrderSummaryRepository.class);
+        OrderProjectionHandler handler = handler(summaryRepo, itemRepo);
+
+        when(summaryRepo.findById(orderId)).thenReturn(Optional.of(summary));
+        when(itemRepo.findByOrderId(orderId)).thenReturn(List.of(item));
+
+        OrderItemAddedEvent added = new OrderItemAddedEvent();
+        added.setAggregateId(orderId);
+        added.setProductId(productId);
+        added.setProductName("Book");
+        added.setQuantity(3);
+        added.setUnitPrice(new BigDecimal("10.00"));
+
+        handler.handleEvent(added);
+
+        assertEquals(5, item.getQuantity());
+        assertEquals(new BigDecimal("50.00"), summary.getTotalAmount());
+        assertEquals(1, summary.getItemCount());
+        verify(itemRepo).save(item);
+        verify(summaryRepo).save(summary);
+    }
+
     @Test
     void removingOneUnitUpdatesQuantityAndOrderTotal() {
         UUID orderId = UUID.randomUUID();

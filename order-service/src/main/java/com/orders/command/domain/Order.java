@@ -153,7 +153,13 @@ public class Order {
             this.shippingAddress = e.getShippingAddress();
             this.status = OrderStatus.DRAFT;
         } else if (event instanceof OrderItemAddedEvent e) {
-            items.add(new OrderItem(e.getProductId(), e.getProductName(), e.getQuantity(), e.getUnitPrice()));
+            items.stream()
+                    .filter(i -> i.getProductId().equals(e.getProductId()))
+                    .findFirst()
+                    .ifPresentOrElse(
+                            existing -> existing.setQuantity(existing.getQuantity() + e.getQuantity()),
+                            () -> items.add(new OrderItem(e.getProductId(), e.getProductName(), e.getQuantity(), e.getUnitPrice()))
+                    );
         } else if (event instanceof OrderItemRemovedEvent e) {
             OrderItem item = items.stream()
                     .filter(i -> i.getProductId().equals(e.getProductId()))
