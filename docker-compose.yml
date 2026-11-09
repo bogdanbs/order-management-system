@@ -56,6 +56,14 @@ services:
       kafka:
         condition: service_healthy
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.3
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./infrastructure/keycloak:/opt/keycloak/data/import:ro
+
   jaeger:
     image: jaegertracing/all-in-one:1.58
     container_name: orders-jaeger
@@ -144,6 +152,7 @@ services:
       SPRING_DATASOURCE_USERNAME: orders_user
       SPRING_DATASOURCE_PASSWORD: ${ORDERS_DB_PASSWORD:-orders_pass}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_JWK_SET_URI: http://keycloak:8080/realms/orders/protocol/openid-connect/certs
       OTEL_SERVICE_NAME: order-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
       LOKI_URL: http://loki:3100
@@ -154,4 +163,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      keycloak:
+        condition: service_started
     restart: on-failure

@@ -14,7 +14,17 @@ mvn verify                   # plus Testcontainers integration tests (needs Dock
 docker compose up --build
 ```
 
-The local Compose demo uses `orders_pass` for PostgreSQL and `admin` for Grafana when no environment variables are set. These are demo-only defaults. Set `ORDERS_DB_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` before starting Compose to use different values. Grafana is available at <http://localhost:3001>; the order API is at <http://localhost:8090>; Alertmanager is at <http://localhost:9093>.
+The local Compose demo uses `orders_pass` for PostgreSQL and `admin` for Grafana when no environment variables are set. These are demo-only defaults. Set `ORDERS_DB_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` before starting Compose to use different values. Grafana is available at <http://localhost:3001>; the order API is at <http://localhost:8090>; Keycloak is at <http://localhost:8081>; Alertmanager is at <http://localhost:9093>.
+
+The local Keycloak realm is imported from `infrastructure/keycloak/orders-realm.json`. Its demo user is `demo` / `orders-demo`; the client is `orders-cli`. Get a short-lived access token with:
+
+```bash
+curl -s -X POST http://localhost:8081/realms/orders/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'client_id=orders-cli&grant_type=password&username=demo&password=orders-demo'
+```
+
+Send the returned `access_token` as `Authorization: Bearer <token>`. This demo user has the `ORDERS_READ` and `ORDERS_WRITE` realm roles. The API requires read authority for GET requests, write authority for POST/DELETE commands, and admin authority for `/admin/**`. New orders belong to the authenticated JWT subject and are visible only to that subject or an administrator. Orders created before ownership tracking have no owner and are administrator-only.
 
 To receive alerts in Slack, set `SLACK_WEBHOOK_URL` to a [Slack incoming webhook](https://api.slack.com/messaging/webhooks) URL before starting Compose. Without it the stack runs normally, and Alertmanager logs failed notification attempts.
 

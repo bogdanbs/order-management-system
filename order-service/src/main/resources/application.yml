@@ -27,7 +27,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:8080/realms/orders/protocol/openid-connect/certs}
+          jwk-set-uri: ${JWT_JWK_SET_URI:}
   kafka:
     bootstrap-servers: localhost:9092
 

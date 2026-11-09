@@ -72,6 +72,17 @@ Watch all pods come up:
 kubectl -n orders get pods -w
 ```
 
+The deployment includes a local-demo Keycloak realm and configures the order service to validate its tokens. Port-forward Keycloak and request a demo token:
+
+```bash
+kubectl -n orders port-forward svc/keycloak 8081:8080
+curl -s -X POST http://localhost:8081/realms/orders/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'client_id=orders-cli&grant_type=password&username=demo&password=orders-demo'
+```
+
+Use the returned `access_token` in an `Authorization: Bearer <token>` header. The demo account has read/write roles; use a separately provisioned `ORDERS_ADMIN` realm role for the admin projection-rebuild endpoint. Replace the demo realm and account before exposing this deployment beyond a local development cluster.
+
 ## 4. Access the services
 
 ### minikube (NodePort)
@@ -139,6 +150,7 @@ kubectl -n orders delete deployments,statefulsets,services,configmaps,secrets --
 | Service | NodePort | Internal port |
 |---|---|---|
 | order-service | 30090 | 8080 |
+| keycloak | — | 8080 |
 | jaeger UI | 30686 | 16686 |
 | grafana | 30300 | 3000 |
 | postgres | — | 5432 |

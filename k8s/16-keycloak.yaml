@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: orders
+data:
+  orders-realm.json: |
+    {
+      "realm": "orders",
+      "enabled": true,
+      "roles": {
+        "realm": [
+          { "name": "ORDERS_READ" },
+          { "name": "ORDERS_WRITE" },
+          { "name": "ORDERS_ADMIN" }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "orders-cli",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": true,
+          "directAccessGrantsEnabled": true,
+          "standardFlowEnabled": false,
+          "defaultClientScopes": ["roles"]
+        }
+      ],
+      "users": [
+        {
+          "username": "demo",
+          "enabled": true,
+          "emailVerified": true,
+          "credentials": [
+            {
+              "type": "password",
+              "value": "orders-demo",
+              "temporary": false
+            }
+          ],
+          "realmRoles": ["ORDERS_READ", "ORDERS_WRITE"]
+        }
+      ]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: orders
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.3.3
+          args: ["start-dev", "--import-realm", "--health-enabled=true"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: orders
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

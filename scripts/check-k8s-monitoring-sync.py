@@ -1,4 +1,4 @@
-"""Checks that monitoring files embedded in k8s ConfigMaps match their sources under infrastructure/.
+"""Checks that source files embedded in k8s ConfigMaps match their infrastructure copies.
 
 Run from the repository root: python3 scripts/check-k8s-monitoring-sync.py
 """
@@ -8,6 +8,7 @@ from pathlib import Path
 
 # (ConfigMap manifest, data key, source file)
 COPIES = [
+    ("k8s/16-keycloak.yaml", "orders-realm.json", "infrastructure/keycloak/orders-realm.json"),
     ("k8s/02-configmaps.yaml", "prometheus.yml", "infrastructure/prometheus/prometheus.yml"),
     ("k8s/02-configmaps.yaml", "alerts.yml", "infrastructure/prometheus/alerts.yml"),
     ("k8s/02-configmaps.yaml", "alertmanager.yml", "infrastructure/alertmanager/alertmanager.yml"),
