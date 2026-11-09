@@ -78,4 +78,24 @@ class ProjectionRebuilderServiceIT {
                 WHERE e.aggregate_id = ?
                 """, Integer.class, orderId)).isEqualTo(3);
     }
+
+    @Test
+    void rebuildIncludesRepeatAddsOfTheSameProductInTheTotal() {
+        UUID orderId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        commandHandler.createOrder(new CreateOrderCommand(
+                orderId, "Ada", "Lovelace", "London", "keycloak-user-1"));
+        commandHandler.addItem(new AddOrderItemCommand(
+                orderId, productId, "Notebook", 2, new BigDecimal("10.00")));
+        commandHandler.addItem(new AddOrderItemCommand(
+                orderId, productId, "Notebook", 1, new BigDecimal("10.00")));
+
+        rebuilder.rebuild();
+
+        OrderSummary summary = summaryRepository.findById(orderId).orElseThrow();
+        OrderItemView item = itemRepository.findByOrderIdAndProductId(orderId, productId).orElseThrow();
+        assertThat(summary.getTotalAmount()).isEqualByComparingTo("30.00");
+        assertThat(summary.getItemCount()).isEqualTo(1);
+        assertThat(item.getQuantity()).isEqualTo(3);
+    }
 }

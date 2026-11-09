@@ -250,9 +250,9 @@ public class ProjectionRebuilderService {
                     """, event.getQuantity(), existing.id());
             jdbcTemplate.update("""
                     UPDATE query_side_rebuild.order_summary
-                    SET total_amount = total_amount + ? - ?, updated_at = ?
+                    SET total_amount = total_amount + ?, updated_at = ?
                     WHERE order_id = ?
-                    """, amountAtExistingPrice, addedAmount, Timestamp.from(event.getOccurredAt()), orderId);
+                    """, amountAtExistingPrice, Timestamp.from(event.getOccurredAt()), orderId);
         }
     }
 
