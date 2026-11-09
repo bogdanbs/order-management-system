@@ -34,17 +34,20 @@ public class OrderProjectionHandler {
     private final ProcessedEventRepository processedRepo;
     private final UpcasterChain upcasterChain;
     private final ObjectMapper objectMapper;
+    private final ProjectionProcessingLock processingLock;
 
     public OrderProjectionHandler(OrderSummaryRepository summaryRepo,
                                   OrderItemViewRepository itemRepo,
                                   ProcessedEventRepository processedRepo,
                                   UpcasterChain upcasterChain,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  ProjectionProcessingLock processingLock) {
         this.summaryRepo = summaryRepo;
         this.itemRepo = itemRepo;
         this.processedRepo = processedRepo;
         this.upcasterChain = upcasterChain;
         this.objectMapper = objectMapper;
+        this.processingLock = processingLock;
     }
 
     @KafkaListener(
@@ -55,6 +58,7 @@ public class OrderProjectionHandler {
     )
     @Transactional
     public void handle(ConsumerRecord<String, String> record) throws Exception {
+        processingLock.acquireShared();
         String payload = record.value();
         JsonNode root = objectMapper.readTree(payload);
         String eventType = root.get("eventType").asText();

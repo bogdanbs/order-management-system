@@ -16,6 +16,7 @@ import com.orders.infrastructure.snapshot.SnapshotRecord;
 import com.orders.infrastructure.snapshot.SnapshotService;
 import com.orders.infrastructure.ownership.OrderOwnershipRecord;
 import com.orders.infrastructure.ownership.OrderOwnershipRepository;
+import com.orders.query.projection.ProjectionProcessingLock;
 import com.orders.infrastructure.upcasting.UpcasterChain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,21 +38,25 @@ public class OrderCommandHandler {
     private final SnapshotService snapshotService;
     private final UpcasterChain upcasterChain;
     private final OrderOwnershipRepository ownershipRepository;
+    private final ProjectionProcessingLock processingLock;
 
     public OrderCommandHandler(EventStore eventStore,
                                OutboxService outboxService,
                                SnapshotService snapshotService,
                                UpcasterChain upcasterChain,
-                               OrderOwnershipRepository ownershipRepository) {
+                               OrderOwnershipRepository ownershipRepository,
+                               ProjectionProcessingLock processingLock) {
         this.eventStore = eventStore;
         this.outboxService = outboxService;
         this.snapshotService = snapshotService;
         this.upcasterChain = upcasterChain;
         this.ownershipRepository = ownershipRepository;
+        this.processingLock = processingLock;
     }
 
     @RetryOnConcurrency
     public UUID createOrder(CreateOrderCommand cmd) {
+        processingLock.acquireShared();
         log.info("Creating order {} for {} {}", cmd.orderId(), cmd.firstName(), cmd.lastName());
         Order order = Order.create(cmd.orderId(), cmd.firstName(), cmd.lastName(), cmd.shippingAddress(),
                 cmd.ownerSubject());
@@ -68,6 +73,7 @@ public class OrderCommandHandler {
 
     @RetryOnConcurrency
     public void addItem(AddOrderItemCommand cmd) {
+        processingLock.acquireShared();
         log.info("Adding item {} (qty={}) to order {}", cmd.productName(), cmd.quantity(), cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.addItem(cmd.productId(), cmd.productName(), cmd.quantity(), cmd.unitPrice());
@@ -76,6 +82,7 @@ public class OrderCommandHandler {
 
     @RetryOnConcurrency
     public void removeItem(RemoveOrderItemCommand cmd) {
+        processingLock.acquireShared();
         log.info("Removing item {} from order {}", cmd.productId(), cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.removeItem(cmd.productId(), cmd.quantity());
@@ -84,6 +91,7 @@ public class OrderCommandHandler {
 
     @RetryOnConcurrency
     public void submit(SubmitOrderCommand cmd) {
+        processingLock.acquireShared();
         log.info("Submitting order {}", cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.submit();
@@ -93,6 +101,7 @@ public class OrderCommandHandler {
 
     @RetryOnConcurrency
     public void confirmPayment(ConfirmPaymentCommand cmd) {
+        processingLock.acquireShared();
         log.info("Confirming payment {} for order {}", cmd.paymentId(), cmd.orderId());
         Order order = loadOrder(cmd.orderId());
         order.confirmPayment(cmd.paymentId(), cmd.amount());
@@ -102,6 +111,7 @@ public class OrderCommandHandler {
 
     @RetryOnConcurrency
     public void cancel(CancelOrderCommand cmd) {
+        processingLock.acquireShared();
         log.info("Cancelling order {}: {}", cmd.orderId(), cmd.reason());
         Order order = loadOrder(cmd.orderId());
         order.cancel(cmd.reason());

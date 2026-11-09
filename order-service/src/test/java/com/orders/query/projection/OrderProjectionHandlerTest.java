@@ -99,7 +99,8 @@ class OrderProjectionHandlerTest {
     private static OrderProjectionHandler handler(OrderSummaryRepository summaryRepo,
                                                   OrderItemViewRepository itemRepo) {
         return new OrderProjectionHandler(summaryRepo, itemRepo,
-                mock(ProcessedEventRepository.class), mock(UpcasterChain.class), new ObjectMapper());
+                mock(ProcessedEventRepository.class), mock(UpcasterChain.class), new ObjectMapper(),
+                mock(ProjectionProcessingLock.class));
     }
 
     private static OrderSummary summary(UUID orderId, BigDecimal totalAmount) {
