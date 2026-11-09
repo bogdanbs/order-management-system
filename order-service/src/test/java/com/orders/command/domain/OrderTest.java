@@ -29,6 +29,21 @@ class OrderTest {
     }
 
     @Test
+    void addingExistingProductAtDifferentPriceIsRejectedWithoutRecordingAnEvent() {
+        UUID productId = UUID.randomUUID();
+        Order order = Order.create(UUID.randomUUID(), "Ada", "Lovelace", "London");
+        order.drainPendingEvents();
+        order.addItem(productId, "Book", 2, new BigDecimal("12.50"));
+        order.drainPendingEvents();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> order.addItem(productId, "Book", 1, new BigDecimal("13.00")));
+        assertEquals(2, order.getItems().getFirst().getQuantity());
+        assertEquals(new BigDecimal("12.50"), order.getItems().getFirst().getUnitPrice());
+        assertEquals(0, order.drainPendingEvents().size());
+    }
+
+    @Test
     void removingOneUnitKeepsTheRemainingQuantity() {
         UUID productId = UUID.randomUUID();
         Order order = Order.create(UUID.randomUUID(), "Ada", "Lovelace", "London");

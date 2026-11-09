@@ -73,76 +73,76 @@ public class OrderProjectionHandler {
     public void handleEvent(DomainEvent event) {
         UUID orderId = event.getAggregateId();
 
-        if (event instanceof OrderCreatedEventV2 e) {
-            OrderSummary summary = new OrderSummary();
-            summary.setOrderId(orderId);
-            summary.setFirstName(e.getFirstName());
-            summary.setLastName(e.getLastName());
-            summary.setShippingAddress(e.getShippingAddress());
-            summary.setStatus("DRAFT");
-            summary.setCreatedAt(e.getOccurredAt());
-            summaryRepo.save(summary);
+        switch (event) {
+            case OrderCreatedEventV2 e -> {
+                OrderSummary summary = new OrderSummary();
+                summary.setOrderId(orderId);
+                summary.setFirstName(e.getFirstName());
+                summary.setLastName(e.getLastName());
+                summary.setShippingAddress(e.getShippingAddress());
+                summary.setStatus("DRAFT");
+                summary.setCreatedAt(e.getOccurredAt());
+                summaryRepo.save(summary);
 
-        } else if (event instanceof OrderItemAddedEvent e) {
-            OrderSummary summary = summaryRepo.findById(orderId)
-                    .orElseThrow(() -> new IllegalStateException("Order summary not found: " + orderId));
-            summary.setTotalAmount(summary.getTotalAmount()
-                    .add(e.getUnitPrice().multiply(BigDecimal.valueOf(e.getQuantity()))));
-            summary.setUpdatedAt(Instant.now());
-
-            Optional<OrderItemView> existingItem = itemRepo.findByOrderId(orderId).stream()
-                    .filter(i -> i.getProductId().equals(e.getProductId()))
-                    .findFirst();
-
-            if (existingItem.isPresent()) {
-                OrderItemView item = existingItem.get();
-                item.setQuantity(item.getQuantity() + e.getQuantity());
-                itemRepo.save(item);
-            } else {
-                summary.setItemCount(summary.getItemCount() + 1);
-                OrderItemView item = new OrderItemView();
-                item.setOrderId(orderId);
-                item.setProductId(e.getProductId());
-                item.setProductName(e.getProductName());
-                item.setQuantity(e.getQuantity());
-                item.setUnitPrice(e.getUnitPrice());
-                itemRepo.save(item);
             }
-            summaryRepo.save(summary);
+            case OrderItemAddedEvent e -> {
+                OrderSummary summary = summaryRepo.findById(orderId)
+                        .orElseThrow(() -> new IllegalStateException("Order summary not found: " + orderId));
+                summary.setTotalAmount(
+                        summary.getTotalAmount().add(e.getUnitPrice().multiply(BigDecimal.valueOf(e.getQuantity()))));
+                summary.setUpdatedAt(Instant.now());
 
-        } else if (event instanceof OrderItemRemovedEvent e) {
-            OrderSummary summary = summaryRepo.findById(orderId)
-                    .orElseThrow(() -> new IllegalStateException("Order summary not found: " + orderId));
-            OrderItemView item = itemRepo.findByOrderId(orderId).stream()
-                    .filter(i -> i.getProductId().equals(e.getProductId()))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Order item not found for order " + orderId + ": " + e.getProductId()));
-            if (e.getQuantity() <= 0 || e.getQuantity() > item.getQuantity()) {
-                throw new IllegalStateException("Removal quantity exceeds projected item quantity");
+                Optional<OrderItemView> existingItem = itemRepo.findByOrderIdAndProductId(orderId, e.getProductId());
+
+                if (existingItem.isPresent()) {
+                    OrderItemView item = existingItem.get();
+                    summary.setTotalAmount(summary.getTotalAmount()
+                            .subtract(e.getUnitPrice().multiply(BigDecimal.valueOf(e.getQuantity())))
+                            .add(item.getUnitPrice().multiply(BigDecimal.valueOf(e.getQuantity()))));
+                    item.setQuantity(item.getQuantity() + e.getQuantity());
+                    itemRepo.save(item);
+                } else {
+                    summary.setItemCount(summary.getItemCount() + 1);
+                    OrderItemView item = new OrderItemView();
+                    item.setOrderId(orderId);
+                    item.setProductId(e.getProductId());
+                    item.setProductName(e.getProductName());
+                    item.setQuantity(e.getQuantity());
+                    item.setUnitPrice(e.getUnitPrice());
+                    itemRepo.save(item);
+                }
+                summaryRepo.save(summary);
+
             }
+            case OrderItemRemovedEvent e -> {
+                OrderSummary summary = summaryRepo.findById(orderId)
+                        .orElseThrow(() -> new IllegalStateException("Order summary not found: " + orderId));
+                OrderItemView item = itemRepo.findByOrderIdAndProductId(orderId, e.getProductId()).orElseThrow(
+                        () -> new IllegalStateException(
+                                "Order item not found for order " + orderId + ": " + e.getProductId()));
+                if (e.getQuantity() <= 0 || e.getQuantity() > item.getQuantity()) {
+                    throw new IllegalStateException("Removal quantity exceeds projected item quantity");
+                }
 
-            summary.setTotalAmount(summary.getTotalAmount()
-                    .subtract(item.getUnitPrice().multiply(BigDecimal.valueOf(e.getQuantity()))));
-            summary.setUpdatedAt(Instant.now());
-            int remainingQuantity = item.getQuantity() - e.getQuantity();
-            if (remainingQuantity == 0) {
-                summary.setItemCount(summary.getItemCount() - 1);
-                itemRepo.delete(item);
-            } else {
-                item.setQuantity(remainingQuantity);
-                itemRepo.save(item);
+                summary.setTotalAmount(summary.getTotalAmount()
+                        .subtract(item.getUnitPrice().multiply(BigDecimal.valueOf(e.getQuantity()))));
+                summary.setUpdatedAt(Instant.now());
+                int remainingQuantity = item.getQuantity() - e.getQuantity();
+                if (remainingQuantity == 0) {
+                    summary.setItemCount(summary.getItemCount() - 1);
+                    itemRepo.delete(item);
+                } else {
+                    item.setQuantity(remainingQuantity);
+                    itemRepo.save(item);
+                }
+                summaryRepo.save(summary);
+
             }
-            summaryRepo.save(summary);
-
-        } else if (event instanceof OrderSubmittedEvent) {
-            updateStatus(orderId, "SUBMITTED");
-
-        } else if (event instanceof OrderPaymentConfirmedEvent) {
-            updateStatus(orderId, "PAID");
-
-        } else if (event instanceof OrderCancelledEvent) {
-            updateStatus(orderId, "CANCELLED");
+            case OrderSubmittedEvent orderSubmittedEvent -> updateStatus(orderId, "SUBMITTED");
+            case OrderPaymentConfirmedEvent orderPaymentConfirmedEvent -> updateStatus(orderId, "PAID");
+            case OrderCancelledEvent orderCancelledEvent -> updateStatus(orderId, "CANCELLED");
+            default -> {
+            }
         }
     }
 

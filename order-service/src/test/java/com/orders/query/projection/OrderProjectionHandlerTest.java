@@ -12,7 +12,6 @@ import com.orders.query.repository.ProcessedEventRepository;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,28 +23,29 @@ import static org.mockito.Mockito.when;
 
 class OrderProjectionHandlerTest {
     @Test
-    void addingExistingProductIncrementsQuantityWithoutIncreasingItemCount() {
+    void addingExistingProductUsesStoredUnitPriceForProjectionTotal() {
         UUID orderId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
-        OrderSummary summary = summary(orderId, 1, new BigDecimal("20.00"));
+        OrderSummary summary = summary(orderId, new BigDecimal("20.00"));
         OrderItemView item = item(orderId, productId, 2);
         OrderItemViewRepository itemRepo = mock(OrderItemViewRepository.class);
         OrderSummaryRepository summaryRepo = mock(OrderSummaryRepository.class);
         OrderProjectionHandler handler = handler(summaryRepo, itemRepo);
 
         when(summaryRepo.findById(orderId)).thenReturn(Optional.of(summary));
-        when(itemRepo.findByOrderId(orderId)).thenReturn(List.of(item));
+        when(itemRepo.findByOrderIdAndProductId(orderId, productId)).thenReturn(Optional.of(item));
 
         OrderItemAddedEvent added = new OrderItemAddedEvent();
         added.setAggregateId(orderId);
         added.setProductId(productId);
         added.setProductName("Book");
         added.setQuantity(3);
-        added.setUnitPrice(new BigDecimal("10.00"));
+        added.setUnitPrice(new BigDecimal("15.00"));
 
         handler.handleEvent(added);
 
         assertEquals(5, item.getQuantity());
+        assertEquals(new BigDecimal("10.00"), item.getUnitPrice());
         assertEquals(new BigDecimal("50.00"), summary.getTotalAmount());
         assertEquals(1, summary.getItemCount());
         verify(itemRepo).save(item);
@@ -56,16 +56,16 @@ class OrderProjectionHandlerTest {
     void removingOneUnitUpdatesQuantityAndOrderTotal() {
         UUID orderId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
-        OrderSummary summary = summary(orderId, 1, new BigDecimal("20.00"));
+        OrderSummary summary = summary(orderId, new BigDecimal("20.00"));
         OrderItemView item = item(orderId, productId, 2);
         OrderItemViewRepository itemRepo = mock(OrderItemViewRepository.class);
         OrderSummaryRepository summaryRepo = mock(OrderSummaryRepository.class);
         OrderProjectionHandler handler = handler(summaryRepo, itemRepo);
 
         when(summaryRepo.findById(orderId)).thenReturn(Optional.of(summary));
-        when(itemRepo.findByOrderId(orderId)).thenReturn(List.of(item));
+        when(itemRepo.findByOrderIdAndProductId(orderId, productId)).thenReturn(Optional.of(item));
 
-        handler.handleEvent(removal(orderId, productId, 1));
+        handler.handleEvent(removal(orderId, productId));
 
         assertEquals(1, item.getQuantity());
         assertEquals(new BigDecimal("10.00"), summary.getTotalAmount());
@@ -79,16 +79,16 @@ class OrderProjectionHandlerTest {
     void removingFinalUnitDeletesTheLineAndDecrementsLineCount() {
         UUID orderId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
-        OrderSummary summary = summary(orderId, 1, new BigDecimal("10.00"));
+        OrderSummary summary = summary(orderId, new BigDecimal("10.00"));
         OrderItemView item = item(orderId, productId, 1);
         OrderItemViewRepository itemRepo = mock(OrderItemViewRepository.class);
         OrderSummaryRepository summaryRepo = mock(OrderSummaryRepository.class);
         OrderProjectionHandler handler = handler(summaryRepo, itemRepo);
 
         when(summaryRepo.findById(orderId)).thenReturn(Optional.of(summary));
-        when(itemRepo.findByOrderId(orderId)).thenReturn(List.of(item));
+        when(itemRepo.findByOrderIdAndProductId(orderId, productId)).thenReturn(Optional.of(item));
 
-        handler.handleEvent(removal(orderId, productId, 1));
+        handler.handleEvent(removal(orderId, productId));
 
         assertEquals(0, summary.getTotalAmount().compareTo(BigDecimal.ZERO));
         assertEquals(0, summary.getItemCount());
@@ -102,11 +102,11 @@ class OrderProjectionHandlerTest {
                 mock(ProcessedEventRepository.class), mock(UpcasterChain.class), new ObjectMapper());
     }
 
-    private static OrderSummary summary(UUID orderId, int itemCount, BigDecimal totalAmount) {
+    private static OrderSummary summary(UUID orderId, BigDecimal totalAmount) {
         OrderSummary summary = new OrderSummary();
         summary.setOrderId(orderId);
         summary.setTotalAmount(totalAmount);
-        summary.setItemCount(itemCount);
+        summary.setItemCount(1);
         return summary;
     }
 
@@ -119,11 +119,11 @@ class OrderProjectionHandlerTest {
         return item;
     }
 
-    private static OrderItemRemovedEvent removal(UUID orderId, UUID productId, int quantity) {
+    private static OrderItemRemovedEvent removal(UUID orderId, UUID productId) {
         OrderItemRemovedEvent event = new OrderItemRemovedEvent();
         event.setAggregateId(orderId);
         event.setProductId(productId);
-        event.setQuantity(quantity);
+        event.setQuantity(1);
         return event;
     }
 }

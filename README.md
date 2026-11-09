@@ -27,6 +27,7 @@ To receive alerts in Slack, set `SLACK_WEBHOOK_URL` to a [Slack incoming webhook
 - `DELETE /api/orders/{id}/items/{productId}` removes one unit. The line remains until its quantity reaches zero.
 - `POST /api/orders/{id}/submit` submits the order.
 - `POST /api/orders/{id}/confirm-payment` confirms payment only when the amount exactly matches the order total. Repeating the same payment ID and amount is idempotent; another payment after confirmation is rejected.
+- Adding a product already present in an order accumulates quantity only at its original unit price; a changed price is rejected rather than silently changing the existing line.
 
 Kafka projection processing retries failed events three times after the initial attempt, then publishes them to `order.events.dlq`. Database changes and the processed-event marker share a transaction; the consumer offset advances only after successful processing.
 

@@ -24,12 +24,12 @@ public class Order {
     private String firstName;
     private String lastName;
     private String shippingAddress;
-    private List<OrderItem> items = new ArrayList<>();
+    private final List<OrderItem> items = new ArrayList<>();
     private UUID paymentId;
     private long version = 0;
 
     @JsonIgnore
-    private List<DomainEvent> pendingEvents = new ArrayList<>();
+    private final List<DomainEvent> pendingEvents = new ArrayList<>();
 
     protected Order() {
     }
@@ -50,6 +50,14 @@ public class Order {
         if (status != OrderStatus.DRAFT) {
             throw new IllegalStateException("Can only add items to DRAFT orders");
         }
+        items.stream()
+                .filter(item -> item.getProductId().equals(productId))
+                .findFirst()
+                .filter(item -> item.getUnitPrice().compareTo(unitPrice) != 0)
+                .ifPresent(item -> {
+                    throw new IllegalArgumentException(
+                            "Unit price cannot change for a product already in the order");
+                });
         OrderItemAddedEvent e = new OrderItemAddedEvent();
         e.setAggregateId(id);
         e.setProductId(productId);
