@@ -7,6 +7,7 @@ import com.orders.command.application.commands.CreateOrderCommand;
 import com.orders.command.application.commands.RemoveOrderItemCommand;
 import com.orders.command.application.commands.SubmitOrderCommand;
 import com.orders.command.domain.Order;
+import com.orders.command.domain.OrderNotFoundException;
 import com.orders.command.domain.events.DomainEvent;
 import com.orders.infrastructure.concurrency.RetryOnConcurrency;
 import com.orders.infrastructure.eventstore.EventStore;
@@ -108,7 +109,7 @@ public class OrderCommandHandler {
         }
         List<DomainEvent> events = eventStore.loadEvents(orderId, upcasterChain);
         if (events.isEmpty()) {
-            throw new IllegalArgumentException("Order not found: " + orderId);
+            throw new OrderNotFoundException(orderId);
         }
         return Order.rehydrate(events);
     }

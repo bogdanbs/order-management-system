@@ -1,5 +1,6 @@
 package com.orders.query.api;
 
+import com.orders.command.domain.OrderNotFoundException;
 import com.orders.infrastructure.eventstore.EventRecord;
 import com.orders.infrastructure.eventstore.EventStoreRepository;
 import com.orders.query.model.OrderItemView;
@@ -46,7 +47,7 @@ public class OrderQueryController {
     public ResponseEntity<OrderSummary> get(@PathVariable UUID id) {
         return summaryRepo.findById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new OrderNotFoundException(id));
     }
 
     @GetMapping("/{id}/items")

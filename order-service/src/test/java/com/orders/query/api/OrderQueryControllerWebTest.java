@@ -1,5 +1,7 @@
 package com.orders.query.api;
 
+import com.orders.api.error.GlobalExceptionHandler;
+import com.orders.infrastructure.config.SecurityConfig;
 import com.orders.infrastructure.eventstore.EventStoreRepository;
 import com.orders.query.model.OrderSummary;
 import com.orders.query.repository.OrderItemViewRepository;
@@ -7,19 +9,24 @@ import com.orders.query.repository.OrderSummaryRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(OrderQueryController.class)
+@Import({SecurityConfig.class, GlobalExceptionHandler.class})
 class OrderQueryControllerWebTest {
     @Autowired
     private MockMvc mockMvc;
@@ -34,7 +41,7 @@ class OrderQueryControllerWebTest {
     private EventStoreRepository eventStoreRepo;
 
     @Test
-    void returnsCustomerOrdersAsJson() throws Exception {
+    void returnsCustomerOrdersAsJsonWhenAuthenticated() throws Exception {
         UUID orderId = UUID.randomUUID();
         OrderSummary order = new OrderSummary();
         order.setOrderId(orderId);
@@ -48,7 +55,8 @@ class OrderQueryControllerWebTest {
 
         mockMvc.perform(get("/api/orders/customer")
                         .param("firstName", "ada")
-                        .param("lastName", "lovelace"))
+                        .param("lastName", "lovelace")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$[0].firstName").value("Ada"))
@@ -57,8 +65,31 @@ class OrderQueryControllerWebTest {
     }
 
     @Test
+    void customerEndpointFailsWhenUnauthenticated() throws Exception {
+        mockMvc.perform(get("/api/orders/customer")
+                        .param("firstName", "ada")
+                        .param("lastName", "lovelace"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void requiresBothCustomerNameParameters() throws Exception {
-        mockMvc.perform(get("/api/orders/customer").param("firstName", "Ada"))
+        mockMvc.perform(get("/api/orders/customer")
+                        .param("firstName", "Ada")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returns404ProblemDetailWhenOrderNotFoundById() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(summaryRepo.findById(orderId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/orders/{id}", orderId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Order Not Found"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.orderId").value(orderId.toString()));
     }
 }
