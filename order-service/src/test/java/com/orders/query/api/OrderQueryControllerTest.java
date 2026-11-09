@@ -5,6 +5,9 @@ import com.orders.query.model.OrderSummary;
 import com.orders.query.repository.OrderItemViewRepository;
 import com.orders.query.repository.OrderSummaryRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 
@@ -21,12 +24,13 @@ class OrderQueryControllerTest {
     @Test
     void findsOrdersForCustomerByName() {
         OrderSummary order = new OrderSummary();
-        when(summaryRepo.findByFirstNameIgnoreCaseAndLastNameIgnoreCaseOrderByCreatedAtDesc("Ada", "Lovelace"))
-                .thenReturn(List.of(order));
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(summaryRepo.findByFirstNameIgnoreCaseAndLastNameIgnoreCase("Ada", "Lovelace", pageable))
+                .thenReturn(new PageImpl<>(List.of(order), pageable, 1));
 
-        List<OrderSummary> result = controller.findByCustomer("Ada", "Lovelace");
+        Page<OrderSummary> result = controller.findByCustomer("Ada", "Lovelace", pageable);
 
-        assertEquals(List.of(order), result);
-        verify(summaryRepo).findByFirstNameIgnoreCaseAndLastNameIgnoreCaseOrderByCreatedAtDesc("Ada", "Lovelace");
+        assertEquals(List.of(order), result.getContent());
+        verify(summaryRepo).findByFirstNameIgnoreCaseAndLastNameIgnoreCase("Ada", "Lovelace", pageable);
     }
 }

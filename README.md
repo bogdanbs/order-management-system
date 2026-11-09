@@ -22,7 +22,7 @@ To receive alerts in Slack, set `SLACK_WEBHOOK_URL` to a [Slack incoming webhook
 
 - `POST /api/orders` creates an order.
 - `GET /api/orders/customer?firstName=Ada&lastName=Lovelace` returns orders matching a customer's first and last name, newest first (case-insensitive).
-- `GET /api/orders` lists all orders.
+- `GET /api/orders` lists all orders. Customer searches and event history are paged too; page size is capped at 100.
 - `POST /api/orders/{id}/items` adds a product and quantity.
 - `DELETE /api/orders/{id}/items/{productId}` removes one unit. The line remains until its quantity reaches zero.
 - `POST /api/orders/{id}/submit` submits the order.

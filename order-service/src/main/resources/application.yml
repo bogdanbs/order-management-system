@@ -1,6 +1,10 @@
 spring:
   application:
     name: order-service
+  data:
+    web:
+      pageable:
+        max-page-size: 100
   datasource:
     url: jdbc:postgresql://localhost:5432/orders_db
     username: orders_user

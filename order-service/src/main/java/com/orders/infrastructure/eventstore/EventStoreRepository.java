@@ -19,6 +19,8 @@ public interface EventStoreRepository extends JpaRepository<EventRecord, UUID> {
 
     Slice<EventRecord> findAllByOrderByOccurredAtAscSequenceNumberAsc(Pageable pageable);
 
+    Slice<EventRecord> findByAggregateIdOrderBySequenceNumberAsc(UUID aggregateId, Pageable pageable);
+
     long countByAggregateId(UUID aggregateId);
 
     boolean existsByAggregateId(UUID aggregateId);
