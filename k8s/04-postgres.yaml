@@ -61,9 +61,6 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: postgres-run
               mountPath: /var/run/postgresql
-            - name: postgres-init
-              mountPath: /docker-entrypoint-initdb.d/init-db.sql
-              subPath: init-db.sql
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "orders_user", "-d", "orders_db"]
@@ -87,9 +84,6 @@ spec:
             claimName: postgres-data
         - name: postgres-run
           emptyDir: {}
-        - name: postgres-init
-          configMap:
-            name: postgres-init
 
 ---
 apiVersion: v1

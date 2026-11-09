@@ -7,7 +7,6 @@ import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
-import org.testcontainers.utility.MountableFile;
 
 /**
  * Shared PostgreSQL and Kafka containers for {@code *IT} tests. Import with
@@ -18,10 +17,7 @@ public class TestcontainersConfiguration {
     @Bean
     @ServiceConnection
     PostgreSQLContainer<?> postgresContainer() {
-        return new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-                .withCopyFileToContainer(
-                        MountableFile.forHostPath("../scripts/init-db.sql"),
-                        "/docker-entrypoint-initdb.d/init-db.sql");
+        return new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"));
     }
 
     @Bean
