@@ -35,6 +35,11 @@ public class Order {
     }
 
     public static Order create(UUID orderId, String firstName, String lastName, String shippingAddress) {
+        return create(orderId, firstName, lastName, shippingAddress, null);
+    }
+
+    public static Order create(UUID orderId, String firstName, String lastName, String shippingAddress,
+                               String ownerSubject) {
         Order order = new Order();
         order.id = orderId;
         OrderCreatedEventV2 event = new OrderCreatedEventV2();
@@ -42,6 +47,9 @@ public class Order {
         event.setFirstName(firstName);
         event.setLastName(lastName);
         event.setShippingAddress(shippingAddress);
+        if (ownerSubject != null && !ownerSubject.isBlank()) {
+            event.getMetadata().put("ownerSubject", ownerSubject);
+        }
         order.applyAndRecord(event);
         return order;
     }

@@ -10,6 +10,8 @@ import com.orders.infrastructure.eventstore.EventStore;
 import com.orders.infrastructure.eventstore.EventStoreRepository;
 import com.orders.infrastructure.outbox.OutboxRecord;
 import com.orders.infrastructure.outbox.OutboxRepository;
+import com.orders.infrastructure.ownership.OrderOwnershipRecord;
+import com.orders.infrastructure.ownership.OrderOwnershipRepository;
 import com.orders.infrastructure.upcasting.UpcasterChain;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +51,9 @@ class OrderCommandHandlerIT {
     private OutboxRepository outboxRepository;
 
     @Autowired
+    private OrderOwnershipRepository ownershipRepository;
+
+    @Autowired
     private UpcasterChain upcasterChain;
 
     @Autowired
@@ -82,6 +87,18 @@ class OrderCommandHandlerIT {
 
         Order order = Order.rehydrate(eventStore.loadEvents(orderId, upcasterChain));
         assertThat(order.getItems()).extracting(OrderItem::getProductName).containsOnly("Pencil");
+    }
+
+    @Test
+    void persistsAuthenticatedOwnerForNewOrders() {
+        UUID orderId = UUID.randomUUID();
+        handler.createOrder(new CreateOrderCommand(
+                orderId, "Ada", "Lovelace", "12 St James's Square", "keycloak-user-1"));
+
+        assertThat(ownershipRepository.findById(orderId))
+                .get()
+                .extracting(OrderOwnershipRecord::getOwnerSubject)
+                .isEqualTo("keycloak-user-1");
     }
 
     private UUID createOrder() {

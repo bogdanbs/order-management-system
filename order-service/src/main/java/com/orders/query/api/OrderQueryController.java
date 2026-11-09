@@ -2,6 +2,7 @@ package com.orders.query.api;
 
 import com.orders.command.domain.OrderNotFoundException;
 import com.orders.infrastructure.eventstore.EventStoreRepository;
+import com.orders.infrastructure.ownership.OrderAccessService;
 import com.orders.query.model.OrderItemView;
 import com.orders.query.model.OrderSummary;
 import com.orders.query.repository.OrderItemViewRepository;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,39 +32,52 @@ public class OrderQueryController {
     private final OrderSummaryRepository summaryRepo;
     private final OrderItemViewRepository itemRepo;
     private final EventStoreRepository eventStoreRepo;
+    private final OrderAccessService orderAccessService;
 
     public OrderQueryController(OrderSummaryRepository summaryRepo,
                                 OrderItemViewRepository itemRepo,
-                                EventStoreRepository eventStoreRepo) {
+                                EventStoreRepository eventStoreRepo,
+                                OrderAccessService orderAccessService) {
         this.summaryRepo = summaryRepo;
         this.itemRepo = itemRepo;
         this.eventStoreRepo = eventStoreRepo;
+        this.orderAccessService = orderAccessService;
     }
 
     @GetMapping
     public Page<OrderSummary> list(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return summaryRepo.findAll(boundedPageable(pageable));
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication authentication) {
+        Pageable bounded = boundedPageable(pageable);
+        return orderAccessService.isAdmin(authentication)
+                ? summaryRepo.findAll(bounded)
+                : summaryRepo.findByOwnerSubject(authentication.getName(), bounded);
     }
 
     @GetMapping("/customer")
     public Page<OrderSummary> findByCustomer(@RequestParam String firstName,
                                              @RequestParam String lastName,
                                              @PageableDefault(size = 20, sort = "createdAt",
-                                                     direction = Sort.Direction.DESC) Pageable pageable) {
-        return summaryRepo.findByFirstNameIgnoreCaseAndLastNameIgnoreCase(
-                firstName, lastName, boundedPageable(pageable));
+                                                     direction = Sort.Direction.DESC) Pageable pageable,
+                                             Authentication authentication) {
+        Pageable bounded = boundedPageable(pageable);
+        return orderAccessService.isAdmin(authentication)
+                ? summaryRepo.findByFirstNameIgnoreCaseAndLastNameIgnoreCase(firstName, lastName, bounded)
+                : summaryRepo.findByOwnerSubjectAndFirstNameIgnoreCaseAndLastNameIgnoreCase(
+                        authentication.getName(), firstName, lastName, bounded);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<OrderSummary> get(@PathVariable UUID id) {
+    public ResponseEntity<OrderSummary> get(@PathVariable UUID id, Authentication authentication) {
+        orderAccessService.requireAccess(id, authentication);
         return summaryRepo.findById(id)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new OrderNotFoundException(id));
     }
 
     @GetMapping("/{id}/items")
-    public List<OrderItemView> items(@PathVariable UUID id) {
+    public List<OrderItemView> items(@PathVariable UUID id, Authentication authentication) {
+        orderAccessService.requireAccess(id, authentication);
         if (!summaryRepo.existsById(id)) {
             throw new OrderNotFoundException(id);
         }
@@ -72,7 +87,9 @@ public class OrderQueryController {
     @GetMapping("/{id}/events")
     public Slice<EventResponse> events(
             @PathVariable UUID id,
-            @PageableDefault(size = 50, sort = "sequenceNumber", direction = Sort.Direction.ASC) Pageable pageable) {
+            @PageableDefault(size = 50, sort = "sequenceNumber", direction = Sort.Direction.ASC) Pageable pageable,
+            Authentication authentication) {
+        orderAccessService.requireAccess(id, authentication);
         if (!eventStoreRepo.existsByAggregateId(id)) {
             throw new OrderNotFoundException(id);
         }

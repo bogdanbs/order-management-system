@@ -29,6 +29,14 @@ class OrderTest {
     }
 
     @Test
+    void ownerSubjectIsStoredInOrderCreatedEventMetadata() {
+        Order order = Order.create(UUID.randomUUID(), "Ada", "Lovelace", "London", "keycloak-user-1");
+
+        var event = order.drainPendingEvents().getFirst();
+        assertEquals("keycloak-user-1", event.getMetadata().get("ownerSubject"));
+    }
+
+    @Test
     void addingExistingProductAtDifferentPriceIsRejectedWithoutRecordingAnEvent() {
         UUID productId = UUID.randomUUID();
         Order order = Order.create(UUID.randomUUID(), "Ada", "Lovelace", "London");

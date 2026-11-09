@@ -14,6 +14,8 @@ import com.orders.infrastructure.eventstore.EventStore;
 import com.orders.infrastructure.outbox.OutboxService;
 import com.orders.infrastructure.snapshot.SnapshotRecord;
 import com.orders.infrastructure.snapshot.SnapshotService;
+import com.orders.infrastructure.ownership.OrderOwnershipRecord;
+import com.orders.infrastructure.ownership.OrderOwnershipRepository;
 import com.orders.infrastructure.upcasting.UpcasterChain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,24 +36,31 @@ public class OrderCommandHandler {
     private final OutboxService outboxService;
     private final SnapshotService snapshotService;
     private final UpcasterChain upcasterChain;
+    private final OrderOwnershipRepository ownershipRepository;
 
     public OrderCommandHandler(EventStore eventStore,
                                OutboxService outboxService,
                                SnapshotService snapshotService,
-                               UpcasterChain upcasterChain) {
+                               UpcasterChain upcasterChain,
+                               OrderOwnershipRepository ownershipRepository) {
         this.eventStore = eventStore;
         this.outboxService = outboxService;
         this.snapshotService = snapshotService;
         this.upcasterChain = upcasterChain;
+        this.ownershipRepository = ownershipRepository;
     }
 
     @RetryOnConcurrency
     public UUID createOrder(CreateOrderCommand cmd) {
         log.info("Creating order {} for {} {}", cmd.orderId(), cmd.firstName(), cmd.lastName());
-        Order order = Order.create(cmd.orderId(), cmd.firstName(), cmd.lastName(), cmd.shippingAddress());
+        Order order = Order.create(cmd.orderId(), cmd.firstName(), cmd.lastName(), cmd.shippingAddress(),
+                cmd.ownerSubject());
         List<DomainEvent> events = order.drainPendingEvents();
         eventStore.append(events, cmd.orderId(), ORDER, 0);
         outboxService.write(events, cmd.orderId(), ORDER, 0);
+        if (cmd.ownerSubject() != null && !cmd.ownerSubject().isBlank()) {
+            ownershipRepository.save(new OrderOwnershipRecord(cmd.orderId(), cmd.ownerSubject()));
+        }
         snapshotService.saveIfThreshold(order, cmd.orderId(), ORDER);
         log.info("Order {} created", cmd.orderId());
         return cmd.orderId();

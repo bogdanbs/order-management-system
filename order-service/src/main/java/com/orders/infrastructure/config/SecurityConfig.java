@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -40,14 +41,27 @@ public class SecurityConfig {
                                 "/actuator/info",
                                 "/actuator/prometheus"
                         ).permitAll()
-                        .requestMatchers("/admin/**").hasAnyAuthority("SCOPE_admin", "ROLE_ADMIN")
-                        .requestMatchers("/api/**").hasAnyAuthority(
-                                "SCOPE_orders",
+                        .requestMatchers("/admin/**").hasAnyAuthority(
+                                "SCOPE_admin", "ROLE_ADMIN", "ROLE_ORDERS_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/**").hasAnyAuthority(
                                 "SCOPE_orders.read",
-                                "SCOPE_orders.write",
-                                "ROLE_USER",
+                                "ROLE_ORDERS_READ",
+                                "ROLE_ORDERS_ADMIN",
                                 "ROLE_ADMIN"
                         )
+                        .requestMatchers(HttpMethod.POST, "/api/**").hasAnyAuthority(
+                                "SCOPE_orders.write",
+                                "ROLE_ORDERS_WRITE",
+                                "ROLE_ORDERS_ADMIN",
+                                "ROLE_ADMIN"
+                        )
+                        .requestMatchers(HttpMethod.DELETE, "/api/**").hasAnyAuthority(
+                                "SCOPE_orders.write",
+                                "ROLE_ORDERS_WRITE",
+                                "ROLE_ORDERS_ADMIN",
+                                "ROLE_ADMIN"
+                        )
+                        .requestMatchers("/api/**").denyAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

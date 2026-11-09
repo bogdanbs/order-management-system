@@ -82,6 +82,7 @@ public class OrderProjectionHandler {
                 summary.setShippingAddress(e.getShippingAddress());
                 summary.setStatus("DRAFT");
                 summary.setCreatedAt(e.getOccurredAt());
+                summary.setOwnerSubject(e.getMetadata().get("ownerSubject"));
                 summaryRepo.save(summary);
 
             }

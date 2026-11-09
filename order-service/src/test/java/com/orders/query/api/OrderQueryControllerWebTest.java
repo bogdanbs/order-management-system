@@ -4,6 +4,7 @@ import com.orders.api.error.GlobalExceptionHandler;
 import com.orders.infrastructure.config.SecurityConfig;
 import com.orders.infrastructure.eventstore.EventRecord;
 import com.orders.infrastructure.eventstore.EventStoreRepository;
+import com.orders.infrastructure.ownership.OrderAccessService;
 import com.orders.query.model.OrderSummary;
 import com.orders.query.repository.OrderItemViewRepository;
 import com.orders.query.repository.OrderSummaryRepository;
@@ -49,6 +50,9 @@ class OrderQueryControllerWebTest {
     @MockitoBean
     private EventStoreRepository eventStoreRepo;
 
+    @MockitoBean
+    private OrderAccessService orderAccessService;
+
     @Test
     void listReturnsPagedOrders() throws Exception {
         UUID orderId = UUID.randomUUID();
@@ -57,10 +61,11 @@ class OrderQueryControllerWebTest {
         order.setFirstName("Ada");
         order.setLastName("Lovelace");
 
-        when(summaryRepo.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(order)));
+        when(summaryRepo.findByOwnerSubject(eq("user"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(order)));
 
         mockMvc.perform(get("/api/orders?page=0&size=10")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders.read"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.content[0].firstName").value("Ada"));
@@ -69,11 +74,11 @@ class OrderQueryControllerWebTest {
     @Test
     void requestedPageSizeIsCappedAtOneHundred() throws Exception {
         mockMvc.perform(get("/api/orders?size=500")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders.read"))))
                 .andExpect(status().isOk());
 
         org.mockito.ArgumentCaptor<Pageable> pageable = org.mockito.ArgumentCaptor.forClass(Pageable.class);
-        verify(summaryRepo).findAll(pageable.capture());
+        verify(summaryRepo).findByOwnerSubject(eq("user"), pageable.capture());
         assertEquals(100, pageable.getValue().getPageSize());
     }
 
@@ -87,14 +92,15 @@ class OrderQueryControllerWebTest {
         order.setStatus("CREATED");
         order.setTotalAmount(new BigDecimal("25.50"));
 
-        when(summaryRepo.findByFirstNameIgnoreCaseAndLastNameIgnoreCase(
-                eq("ada"), eq("lovelace"), any(Pageable.class)))
+        when(summaryRepo.findByOwnerSubjectAndFirstNameIgnoreCaseAndLastNameIgnoreCase(
+                eq("test-subject"), eq("ada"), eq("lovelace"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(order)));
 
         mockMvc.perform(get("/api/orders/customer")
                         .param("firstName", "ada")
                         .param("lastName", "lovelace")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                        .with(jwt().jwt(token -> token.subject("test-subject"))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_orders.read"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.content[0].firstName").value("Ada"))
@@ -114,7 +120,7 @@ class OrderQueryControllerWebTest {
     void requiresBothCustomerNameParameters() throws Exception {
         mockMvc.perform(get("/api/orders/customer")
                         .param("firstName", "Ada")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders.read"))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -124,7 +130,7 @@ class OrderQueryControllerWebTest {
         when(summaryRepo.findById(orderId)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/orders/{id}", orderId)
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders.read"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Order Not Found"))
                 .andExpect(jsonPath("$.status").value(404))
@@ -149,7 +155,7 @@ class OrderQueryControllerWebTest {
                 .thenReturn(new SliceImpl<>(List.of(record)));
 
         mockMvc.perform(get("/api/orders/{id}/events?page=0&size=10", orderId)
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders.read"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].aggregateId").value(orderId.toString()))
                 .andExpect(jsonPath("$.content[0].eventType").value("OrderCreated"))
@@ -162,7 +168,7 @@ class OrderQueryControllerWebTest {
         when(summaryRepo.existsById(orderId)).thenReturn(false);
 
         mockMvc.perform(get("/api/orders/{id}/items", orderId)
-                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_orders.read"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

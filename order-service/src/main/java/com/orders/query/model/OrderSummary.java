@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -38,6 +39,10 @@ public class OrderSummary {
 
     @Column(name = "updated_at")
     private Instant updatedAt = Instant.now();
+
+    @JsonIgnore
+    @Column(name = "owner_subject")
+    private String ownerSubject;
 
     public UUID getOrderId() {
         return orderId;
@@ -109,5 +114,13 @@ public class OrderSummary {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getOwnerSubject() {
+        return ownerSubject;
+    }
+
+    public void setOwnerSubject(String ownerSubject) {
+        this.ownerSubject = ownerSubject;
     }
 }

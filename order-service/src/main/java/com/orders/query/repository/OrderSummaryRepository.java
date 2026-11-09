@@ -10,4 +10,9 @@ import java.util.UUID;
 public interface OrderSummaryRepository extends JpaRepository<OrderSummary, UUID> {
     Page<OrderSummary> findByFirstNameIgnoreCaseAndLastNameIgnoreCase(
             String firstName, String lastName, Pageable pageable);
+
+    Page<OrderSummary> findByOwnerSubject(String ownerSubject, Pageable pageable);
+
+    Page<OrderSummary> findByOwnerSubjectAndFirstNameIgnoreCaseAndLastNameIgnoreCase(
+            String ownerSubject, String firstName, String lastName, Pageable pageable);
 }
